@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PersonaProfile",
+  "description": "Formal 7-Tuple Operationalized Persona Specification for Multi-Agent Orchestration",
+  "type": "object",
+  "required": [
+    "persona_id",
+    "display_name",
+    "identity_and_mandate",
+    "epistemic_stance",
+    "mandatory_invariants",
+    "heuristic_attack_vectors",
+    "permitted_tool_matrix",
+    "output_rigor_schema",
+    "defect_scoring_thresholds"
+  ],
+  "properties": {
+    "persona_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "model_tier_binding": {
+      "type": "object",
+      "required": ["recommended_model", "min_reasoning_tier"],
+      "properties": {
+        "recommended_model": { "type": "string" },
+        "min_reasoning_tier": { 
+          "type": "string",
+          "enum": ["velocity_flash", "deep_reasoning_pro", "macro_architectural_opus"]
+        },
+        "omp_agent_role": { 
+          "type": "string",
+          "enum": ["task", "reviewer", "security-reviewer"]
+        }
+      }
+    },
+    "identity_and_mandate": {
+      "type": "object",
+      "required": ["role_category", "primary_mission", "in_scope_jurisdiction", "explicit_out_of_scope"],
+      "properties": {
+        "role_category": {
+          "type": "string",
+          "enum": ["Maker", "Panelist1_Correctness", "Panelist2_Security", "Panelist3_SystemicSentinel", "Arbiter"]
+        },
+        "primary_mission": { "type": "string" },
+        "in_scope_jurisdiction": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "explicit_out_of_scope": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "epistemic_stance": {
+      "type": "object",
+      "required": ["stance_type", "skepticism_index", "cognitive_priors", "success_definition"],
+      "properties": {
+        "stance_type": {
+          "type": "string",
+          "enum": [
+            "constructive_synthesis",
+            "hostile_falsification",
+            "adversarial_exploit",
+            "macro_sentinel",
+            "algorithmic_precision",
+            "systems_minimalism"
+          ]
+        },
+        "skepticism_index": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "cognitive_priors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "success_definition": { "type": "string" },
+        "negative_constraints": {
+          "type": "array",
+          "description": "Explicit negative boundary constraints detailing patterns and states the persona must strictly reject",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "mandatory_invariants": {
+      "type": "array",
+      "description": "Non-negotiable domain rules that must be explicitly verified or audited",
+      "items": {
+        "type": "object",
+        "required": ["invariant_id", "statement", "verification_method"],
+        "properties": {
+          "invariant_id": { "type": "string" },
+          "statement": { "type": "string" },
+          "verification_method": { 
+            "type": "string",
+            "enum": ["smt_proof", "property_test", "static_ast_audit", "lsp_caller_trace", "runtime_execution"]
+          }
+        }
+      }
+    },
+    "heuristic_attack_vectors": {
+      "type": "array",
+      "description": "Checklist of pathological cases, boundary states, or vulnerabilities to actively probe",
+      "items": {
+        "type": "object",
+        "required": ["vector_id", "name", "concrete_probe_pattern"],
+        "properties": {
+          "vector_id": { "type": "string" },
+          "name": { "type": "string" },
+          "concrete_probe_pattern": { "type": "string" }
+        }
+      }
+    },
+    "permitted_tool_matrix": {
+      "type": "object",
+      "required": ["allowed_tools", "denied_tools", "specialized_capabilities"],
+      "properties": {
+        "allowed_tools": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "denied_tools": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "specialized_capabilities": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "output_rigor_schema": {
+      "type": "object",
+      "required": ["mandatory_evidence_fields", "min_edge_cases_required"],
+      "properties": {
+        "mandatory_evidence_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "min_edge_cases_required": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verdict_format": {
+          "type": "string",
+          "enum": ["JSON_STRICT", "STRUCTURED_MARKDOWN_BACKUP"]
+        }
+      }
+    },
+    "defect_scoring_thresholds": {
+      "type": "object",
+      "required": ["sev_1_criteria", "sev_2_criteria", "sev_3_criteria"],
+      "properties": {
+        "sev_1_criteria": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sev_2_criteria": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sev_3_criteria": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

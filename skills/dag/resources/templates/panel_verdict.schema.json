@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PanelVerdictSchema",
+  "description": "Standardized Machine-Readable JSON Schema for 3-Agent Adversarial Verification Verdicts",
+  "type": "object",
+  "required": [
+    "panelist_role",
+    "persona_id",
+    "model_tier",
+    "vote",
+    "highest_severity",
+    "falsification_evidence",
+    "defects"
+  ],
+  "properties": {
+    "panelist_role": {
+      "type": "string",
+      "enum": [
+        "Panelist1_Correctness",
+        "Panelist2_Security",
+        "Panelist3_SystemicSentinel",
+        "Arbiter"
+      ]
+    },
+    "persona_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "model_tier": {
+      "type": "string"
+    },
+    "vote": {
+      "type": "string",
+      "enum": ["APPROVE", "REJECT"]
+    },
+    "highest_severity": {
+      "type": "string",
+      "enum": ["None", "Sev-1", "Sev-2", "Sev-3"]
+    },
+    "contract_compliance": {
+      "type": "object",
+      "properties": {
+        "pre_conditions_satisfied": { "type": "boolean" },
+        "post_conditions_satisfied": { "type": "boolean" },
+        "frame_conditions_respected": { "type": "boolean" }
+      }
+    },
+    "falsification_evidence": {
+      "type": "array",
+      "description": "Explicit evidence of boundary testing, attack vector simulation, or caller impact tracing",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "edge_cases_tested": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["input_tested", "expected_behavior", "observed_behavior", "passed"],
+        "properties": {
+          "input_tested": { "type": "string" },
+          "expected_behavior": { "type": "string" },
+          "observed_behavior": { "type": "string" },
+          "passed": { "type": "boolean" }
+        }
+      }
+    },
+    "defects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "summary",
+          "counterexample",
+          "root_cause",
+          "negative_constraint"
+        ],
+        "properties": {
+          "defect_id": {
+            "type": "string",
+            "description": "Unique defect identifier (e.g. DEF-001)"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["Sev-1", "Sev-2", "Sev-3"]
+          },
+          "summary": { "type": "string" },
+          "input_payload": {
+            "type": "string",
+            "description": "Concrete input parameters or state that triggers failure"
+          },
+          "counterexample": {
+            "type": "string",
+            "description": "Exact input or condition producing failure"
+          },
+          "execution_trace": {
+            "type": "string",
+            "description": "Step-by-step falsification execution trace"
+          },
+          "violated_invariant": {
+            "type": "string",
+            "description": "Declared contract or system invariant breached"
+          },
+          "root_cause": {
+            "type": "string",
+            "description": "Underlying programmatic or architectural error"
+          },
+          "negative_constraint": {
+            "type": "string",
+            "description": "Binding constraint to prevent recurrence in iteration N+1"
+          },
+          "waived_by": {
+            "type": "string",
+            "description": "Architectural waiver rationale if lawfully waived"
+          }
+        }
+      }
+    }
+  }
+}
