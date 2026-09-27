@@ -115,6 +115,27 @@ omp skill install -g @wtp128pro/dag
 omp skill install @wtp128pro/dag
 ```
 
+### Step 4: Configure Model Roles (`~/.omp/agent/config.yml`)
+
+**Crucial Prerequisite**: The `dag` engine relies on OMP's multi-tiered role system (`default`, `slow`, `architect`, `smol`) to orchestrate heterogeneous subagent panels. Without this configuration, OMP subagents (`reviewer`, `security-reviewer`, `task`) cannot resolve their respective reasoning tiers and will collapse into a single default model.
+
+Create or update your global OMP configuration file at `~/.omp/agent/config.yml`:
+
+```yaml
+setupVersion: 2
+modelRoles:
+  default: google-antigravity/gemini-3.8-flash:high
+  slow: google-antigravity/gemini-3.1-pro:high
+  architect: anthropic/claude-opus-5-5:xhigh
+  smol: anthropic/claude-haiku-4-5
+```
+
+> **Model Roles Mapping**:
+> - `default`: Tier 1 Synthesis / Maker subagents (`agent: 'task'`).
+> - `slow`: Tier 2 Algorithmic & Security deep reasoning checkers (`agent: 'reviewer'`, `agent: 'security-reviewer'`).
+> - `architect`: Tier 3 Macro-Reasoning Sentinel (`anthropic/claude-opus-5-5:xhigh`) with unilateral veto authority.
+> - `smol`: Lightweight utility, classification, and summarization tasks.
+
 ---
 
 ## Updating Skills in OMP
@@ -203,7 +224,7 @@ The `dag` skill enforces a **Tri-Model Heterogeneous Tiering Architecture** to e
 ### Supported Model Alternatives
 If the primary models are unavailable in your environment, the following models can be substituted:
 - **Tier 1 (Maker)**: `google-antigravity/gemini-3.8-flash:high`, `google/gemini-2.5-flash`, `anthropic/claude-3-7-sonnet`, `openai/gpt-4o`
-- **Tier 2 (Deep Reasoning Checkers)**: `google-antigravity/gemini-3-pro:high`, `openai/o1`, `openai/o3-mini:high`, `anthropic/claude-3-7-sonnet:thinking`
+- **Tier 2 (Deep Reasoning Checkers)**: `google-antigravity/gemini-3.1-pro:high`, `google-antigravity/gemini-3-pro:high`, `openai/o1`, `openai/o3-mini:high`, `anthropic/claude-3-7-sonnet:thinking`
 - **Tier 3 (Macro-Reasoning Sentinel)**: `anthropic/claude-opus-5-5:xhigh`, `anthropic/claude-3-opus`, `openai/gpt-4.5-preview`
 
 ### Recommended OMP Configuration (`~/.omp/agent/config.yml`)
@@ -213,12 +234,49 @@ To configure your model roles for optimal DAG orchestration:
 setupVersion: 2
 modelRoles:
   default: google-antigravity/gemini-3.8-flash:high
-  slow: google-antigravity/gemini-3-pro:high
+  slow: google-antigravity/gemini-3.1-pro:high
   architect: anthropic/claude-opus-5-5:xhigh
+  smol: anthropic/claude-haiku-4-5
 ```
 
-### Required API Keys (Environment Variables)
-Set the appropriate API keys in your environment (e.g., in `~/.bashrc`, `~/.zshrc`, or `.env`):
+### Provider Authentication: OMP `/login` & API Keys
+
+You can authenticate the required model providers either via OMP's native provider login (recommended) or via standard environment variables.
+
+#### Option 1: Native OMP Provider Login via `/login` (Recommended)
+
+Authenticate your accounts directly inside an interactive `omp` session using the `/login` slash command, or from your terminal using `omp login`:
+
+1. **Google Antigravity / Gemini (Tiers 1 & 2)**:
+   ```bash
+   # Terminal command:
+   omp login antigravity
+   
+   # Or inside an active omp session:
+   /login antigravity
+   ```
+
+2. **Anthropic Claude (Tier 3 Macro-Reasoning Sentinel)**:
+   ```bash
+   # Terminal command:
+   omp login anthropic
+   
+   # Or inside an active omp session:
+   /login anthropic
+   ```
+
+3. **OpenAI (Optional / Alternative reasoning models)**:
+   ```bash
+   # Terminal command:
+   omp login openai-codex
+   
+   # Or inside an active omp session:
+   /login openai-codex
+   ```
+
+#### Option 2: Environment Variables (Headless / CI Automation)
+
+Alternatively, set the appropriate API keys in your environment (e.g., in `~/.bashrc`, `~/.zshrc`, or `.env`):
 
 ```bash
 # Google Gemini (Tiers 1 & 2)
