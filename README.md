@@ -115,9 +115,9 @@ omp skill install -g @wtp128pro/dag
 omp skill install @wtp128pro/dag
 ```
 
-### Step 4: Configure Model Roles (`~/.omp/agent/config.yml`)
+### Step 4: Configure Model Roles & Subagent Overrides (`~/.omp/agent/config.yml`)
 
-**Crucial Prerequisite**: The `dag` engine relies on OMP's multi-tiered role system (`default`, `slow`, `architect`, `smol`) to orchestrate heterogeneous subagent panels. Without this configuration, OMP subagents (`reviewer`, `security-reviewer`, `task`) cannot resolve their respective reasoning tiers and will collapse into a single default model.
+**Crucial Prerequisite**: The `dag` engine relies on OMP's multi-tiered role system (`default`, `slow`, `architect`, `smol`) and subagent overrides to orchestrate heterogeneous panels. Without this configuration, OMP subagents (`reviewer`, `security-reviewer`, `task`) cannot resolve their respective reasoning tiers and will collapse into a single default model family.
 
 Create or update your global OMP configuration file at `~/.omp/agent/config.yml`:
 
@@ -128,14 +128,23 @@ modelRoles:
   slow: google-antigravity/gemini-3.1-pro:high
   architect: anthropic/claude-opus-5-5:xhigh
   smol: anthropic/claude-haiku-4-5
+
+task:
+  agentModelOverrides:
+    reviewer: anthropic/claude-opus-5-5:xhigh
+    security-reviewer: google-antigravity/gemini-3.1-pro:high
 ```
 
-> **Model Roles Mapping**:
-> - `default`: Tier 1 Synthesis / Maker subagents (`agent: 'task'`).
-> - `slow`: Tier 2 Algorithmic & Security deep reasoning checkers (`agent: 'reviewer'`, `agent: 'security-reviewer'`).
-> - `architect`: Tier 3 Macro-Reasoning Sentinel (`anthropic/claude-opus-5-5:xhigh`) with unilateral veto authority.
-> - `smol`: Lightweight utility, classification, and summarization tasks.
+Or configure it directly from your terminal using the OMP CLI:
+```bash
+omp config set task.agentModelOverrides '{"reviewer": "anthropic/claude-opus-5-5:xhigh", "security-reviewer": "google-antigravity/gemini-3.1-pro:high"}'
+```
 
+> **CRITICAL: Subagent Model Overrides (`task.agentModelOverrides`)**:
+> By default, OMP subagents spawned via the `task` tool inherit the active session's default model unless mapped in `task.agentModelOverrides`.
+> - `reviewer`: Bound to **Claude Opus 5.5 xhigh** (`@architect`) for whole-system blast radius, backward compatibility, and unilateral veto authority.
+> - `security-reviewer`: Bound to **Gemini Pro Deep Think** (`@slow`) for deep algorithmic boundary exploration and security invariant falsification.
+> - `task`: Handled by **Gemini 3.8 Flash High** (`default`) for rapid code synthesis and tool orchestration.
 ---
 
 ## Updating Skills in OMP
@@ -237,6 +246,11 @@ modelRoles:
   slow: google-antigravity/gemini-3.1-pro:high
   architect: anthropic/claude-opus-5-5:xhigh
   smol: anthropic/claude-haiku-4-5
+
+task:
+  agentModelOverrides:
+    reviewer: anthropic/claude-opus-5-5:xhigh
+    security-reviewer: google-antigravity/gemini-3.1-pro:high
 ```
 
 ### Provider Authentication: OMP `/login` & API Keys
@@ -258,7 +272,6 @@ Authenticate your accounts directly inside an interactive `omp` session using th
 
 2. **Anthropic Claude (Tier 3 Macro-Reasoning Sentinel)**:
    ```bash
-   # Terminal command:
    omp login anthropic
    
    # Or inside an active omp session:
