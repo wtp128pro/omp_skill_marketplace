@@ -2,7 +2,7 @@
   "persona_id": "EnterpriseSecurityArchitect",
   "display_name": "Enterprise Security Architect & Invariant Auditor",
   "model_tier_binding": {
-    "recommended_model": "google-antigravity/gemini-3-pro:high",
+    "recommended_model": "google-antigravity/gemini-3.1-pro:high",
     "min_reasoning_tier": "deep_reasoning_pro",
     "omp_agent_role": "security-reviewer"
   },

@@ -20,7 +20,7 @@ All panelists MUST return machine-verifiable JSON conforming to `panel_verdict.s
 {
   "panelist_role": "Panelist1_Correctness",
   "persona_id": "CorrectnessContractFalsifier",
-  "model_tier": "google-antigravity/gemini-3-pro:high",
+  "model_tier": "google-antigravity/gemini-3.1-pro:high",
   "vote": "APPROVE",
   "highest_severity": "None",
   "falsification_evidence": [
@@ -37,7 +37,7 @@ If defects are detected:
 {
   "panelist_role": "Panelist1_Correctness",
   "persona_id": "CorrectnessContractFalsifier",
-  "model_tier": "google-antigravity/gemini-3-pro:high",
+  "model_tier": "google-antigravity/gemini-3.1-pro:high",
   "vote": "REJECT",
   "highest_severity": "Sev-1",
   "falsification_evidence": [

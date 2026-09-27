@@ -210,7 +210,7 @@ The `dag` skill enforces a **Tri-Model Heterogeneous Tiering Architecture** to e
 │  Function: High-throughput code implementation and file edits          │
 ├────────────────────────────────────────────────────────────────────────┤
 │  Tier 2: Deep Reasoning Algorithmic & Security Checkers                │
-│  Model: Gemini Pro Deep Think (google-antigravity/gemini-3-pro:high)   │
+│  Model: Gemini Pro Deep Think (google-antigravity/gemini-3.1-pro:high) │
 │  Agents: 'reviewer', 'security-reviewer'                               │
 │  Function: SMT falsification, boundary exploits, concurrency analysis  │
 ├────────────────────────────────────────────────────────────────────────┤

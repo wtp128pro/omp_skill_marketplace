@@ -117,7 +117,7 @@ Before completing any task that modified or added code, a **final holistic 3-age
 2. **Review Canvas**: The full git diff, entire test suite results, and system integration points.
 3. **Panelist Specializations & Model Tiering**:
    - *Panelist A (System Blast Radius Auditor)*: **Claude Opus 5.5 xhigh** (`anthropic/claude-opus-5-5:xhigh`, `agent: 'reviewer'`) verifies non-touched subsystems continue to function identically and backward compatibility remains intact.
-   - *Panelist B (Performance & Scalability Sentinel)*: **Gemini Pro Deep Think** (`google-antigravity/gemini-3-pro:high`, `agent: 'security-reviewer'`) audits for hidden latency regressions, connection pool exhaustion, memory growth, or I/O bottlenecks.
+   - *Panelist B (Performance & Scalability Sentinel)*: **Gemini Pro Deep Think** (`google-antigravity/gemini-3.1-pro:high`, `agent: 'security-reviewer'`) audits for hidden latency regressions, connection pool exhaustion, memory growth, or I/O bottlenecks.
    - *Panelist C (Codebase Architectural Sentinel)*: **Claude Opus 5.5 xhigh** (`anthropic/claude-opus-5-5:xhigh`, `agent: 'reviewer'`) verifies adherence to project conventions, documentation standards, and clean dependency boundaries.
 4. **Deliverable**: `.omp_wip/<session>/99_final_review/adversarial_regression_audit.md`.
 

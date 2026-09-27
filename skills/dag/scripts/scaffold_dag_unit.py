@@ -171,7 +171,7 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
         {
           "panelist_role": "Panelist1_Correctness",
           "persona_id": "CorrectnessContractFalsifier",
-          "model_tier": "google-antigravity/gemini-3-pro:high",
+          "model_tier": "google-antigravity/gemini-3.1-pro:high",
           "vote": "PENDING",
           "highest_severity": "None",
           "falsification_evidence": [],
@@ -180,7 +180,7 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
         {
           "panelist_role": "Panelist2_Security",
           "persona_id": "SecurityInvariantAuditor",
-          "model_tier": "google-antigravity/gemini-3-pro:high",
+          "model_tier": "google-antigravity/gemini-3.1-pro:high",
           "vote": "PENDING",
           "highest_severity": "None",
           "falsification_evidence": [],

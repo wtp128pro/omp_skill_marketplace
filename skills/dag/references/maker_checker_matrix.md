@@ -19,8 +19,8 @@ The `dag` skill enforces a **Tri-Model Heterogeneous Architecture** combining th
 | Role / Mandate | Assigned Model Tier | OMP Selector / Agent Type | Primary Architectural Capability |
 | :--- | :--- | :--- | :--- |
 | **Maker (Standard AWU)** | **Gemini 3.8 Flash High** (Velocity Tier) | `google-antigravity/gemini-3.8-flash:high`<br>`agent: 'task'` | Ultra-fast token synthesis, zero latency drag, aggressive tool execution, comprehensive local test creation. |
-| **Checker 1: Correctness & Contract Falsifier** | **Gemini Pro Deep Think** (Deep Reasoning Tier) | `google-antigravity/gemini-3-pro:high`<br>`agent: 'reviewer'` (`@slow`) | Algorithmic boundary exploration, symbolic/mathematical constraint satisfaction, off-by-one and edge-case falsification. |
-| **Checker 2: Security, Invariants & Boundary Auditor** | **Gemini Pro Deep Think** (Deep Reasoning Tier) | `google-antigravity/gemini-3-pro:high`<br>`agent: 'security-reviewer'` (`@slow`) | Deep vulnerability discovery, exploit vector pathfinding, concurrency hazards, memory leak detection, invariant defense. |
+| **Checker 1: Correctness & Contract Falsifier** | **Gemini Pro Deep Think** (Deep Reasoning Tier) | `google-antigravity/gemini-3.1-pro:high`<br>`agent: 'reviewer'` (`@slow`) | Algorithmic boundary exploration, symbolic/mathematical constraint satisfaction, off-by-one and edge-case falsification. |
+| **Checker 2: Security, Invariants & Boundary Auditor** | **Gemini Pro Deep Think** (Deep Reasoning Tier) | `google-antigravity/gemini-3.1-pro:high`<br>`agent: 'security-reviewer'` (`@slow`) | Deep vulnerability discovery, exploit vector pathfinding, concurrency hazards, memory leak detection, invariant defense. |
 | **Checker 3: Regression, Blast Radius & Systemic Sentinel** | **Claude Opus 5.5 xhigh** (Macro-Reasoning Tier) | `anthropic/claude-opus-5-5:xhigh`<br>`agent: 'reviewer'` (`@architect`) | Cross-vendor epistemic orthogonality, whole-system blast radius analysis, caller compatibility, backward compatibility, anti-goldplating. |
 | **Phase 5 Lead Release Sentinel** | **Claude Opus 5.5 xhigh** (Macro-Reasoning Tier) | `anthropic/claude-opus-5-5:xhigh`<br>`agent: 'reviewer'` | Full repository changeset evaluation, system-wide invariant integrity, zero unintended negative side effects. |
 | **Bounded Graph Addition (BGA) Arbiter** | **Claude Opus 5.5 xhigh** (Macro-Reasoning Tier) | `anthropic/claude-opus-5-5:xhigh`<br>`agent: 'reviewer'` | Structural DAG scope gatekeeper; evaluates whether proposed nodes are genuine blockers or scope drift. |
@@ -128,31 +128,31 @@ The `dag` skill maintains a formalized roster of 20 operationalized personas adh
 ### 3.2 Adversarial Checker Persona Catalog (The Verification Panels)
 
 #### Panelist 1: Correctness & Contract Falsification (Deep Reasoning Tier)
-1. **AdversarialQaEngineer** (`google-antigravity/gemini-3-pro:high`, `reviewer`):
+1. **AdversarialQaEngineer** (`google-antigravity/gemini-3.1-pro:high`, `reviewer`):
    - *Mindset*: "The Maker's logic has a hidden boundary flaw. I will synthesize pathological edge cases (nulls, empty sets, INT_MIN/MAX, unicode anomalies, concurrent races) to falsify the implementation."
    - *Domain Focus*: Cartesian product boundary batteries, state machine invalid sequence stress, idempotency replay probes, and automated test shrinking.
 
-2. **FormalMethodsProfessor** (`google-antigravity/gemini-3-pro:high`, `reviewer`):
+2. **FormalMethodsProfessor** (`google-antigravity/gemini-3.1-pro:high`, `reviewer`):
    - *Mindset*: "Empirical tests are insufficient; only mathematical contracts prove correctness. I will encode pre/post-conditions into SMT solvers (Z3) and falsify inductive loop invariants."
    - *Domain Focus*: Hoare logic contracts, Dijkstra weakest preconditions, inductive loop invariants, termination variants, SMT constraint solving, and Bernstein concurrency non-interference proofs.
 
-3. **DatabasePerformanceAuditor** (`google-antigravity/gemini-3-pro:high`, `reviewer`):
+3. **DatabasePerformanceAuditor** (`google-antigravity/gemini-3.1-pro:high`, `reviewer`):
    - *Mindset*: "This query will trigger a catastrophic sequential scan in production. I will analyze EXPLAIN plans, deadlock graphs, and lock escalation under concurrent traffic."
    - *Domain Focus*: Relational query plans (`EXPLAIN (ANALYZE, BUFFERS)`), unindexed foreign keys, blocking DDL migration table rewrites, and Redis event loop blocking commands.
 
-4. **CorrectnessContractFalsifier** (`google-antigravity/gemini-3-pro:high`, `reviewer`):
+4. **CorrectnessContractFalsifier** (`google-antigravity/gemini-3.1-pro:high`, `reviewer`):
    - *Mindset*: General algorithmic boundary exploration and contract post-condition falsification.
 
 #### Panelist 2: Security, Invariants & Boundary Auditing (Deep Reasoning Tier)
-5. **EnterpriseSecurityArchitect** (`google-antigravity/gemini-3-pro:high`, `security-reviewer`):
+5. **EnterpriseSecurityArchitect** (`google-antigravity/gemini-3.1-pro:high`, `security-reviewer`):
    - *Mindset*: "The Maker has introduced an exploitable multi-tenant breach, cryptographic timing flaw, or perimeter bypass."
    - *Domain Focus*: SaaS/on-prem tenant isolation, constant-time cryptographic primitives, OAuth 2.1 / OIDC claims validation, SSRF DNS-rebinding defense, and mTLS egress filtering.
 
-6. **MacOSAppStoreSentinel** (`google-antigravity/gemini-3-pro:high`, `security-reviewer`):
+6. **MacOSAppStoreSentinel** (`google-antigravity/gemini-3.1-pro:high`, `security-reviewer`):
    - *Mindset*: "This macOS application will be rejected by Apple App Review or leaks sandboxed resources."
    - *Domain Focus*: App Store Review Guidelines (Sections 2.1, 2.5, 5.1), binary symbol scanning for private Apple Cocoa APIs (`nm`/`otool`), entitlement minimization, and TCC `Info.plist` usage descriptions.
 
-7. **SecurityInvariantAuditor** (`google-antigravity/gemini-3-pro:high`, `security-reviewer`):
+7. **SecurityInvariantAuditor** (`google-antigravity/gemini-3.1-pro:high`, `security-reviewer`):
    - *Mindset*: General vulnerability pathfinding, memory leaks, buffer overruns, and authentication bypasses.
 
 #### Panelist 3: Regression, Blast Radius & Systemic Sentinel (Macro-Reasoning Tier - Claude Opus 5.5 xhigh)
@@ -215,8 +215,8 @@ To guarantee independent context budgets and eliminate cognitive bias:
    *Alternative via OMP `eval` with explicit model routing:*
    ```python
    # Checkers 1 & 2: Gemini Pro Deep Think (Deep Reasoning Tier)
-   p1 = agent(panelist_1_prompt, agent="reviewer", model="google-antigravity/gemini-3-pro:high", label="Panelist1Correctness")
-   p2 = agent(panelist_2_prompt, agent="security-reviewer", model="google-antigravity/gemini-3-pro:high", label="Panelist2Security")
+   p1 = agent(panelist_1_prompt, agent="reviewer", model="google-antigravity/gemini-3.1-pro:high", label="Panelist1Correctness")
+   p2 = agent(panelist_2_prompt, agent="security-reviewer", model="google-antigravity/gemini-3.1-pro:high", label="Panelist2Security")
    
    # Checker 3: Claude Opus 5.5 xhigh (Macro-Architectural Sentinel Tier)
    p3 = agent(panelist_3_prompt, agent="reviewer", model="anthropic/claude-opus-5-5:xhigh", label="Panelist3SystemicSentinel")
