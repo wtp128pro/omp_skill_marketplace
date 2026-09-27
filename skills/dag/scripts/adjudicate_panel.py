@@ -64,6 +64,55 @@ def standardize_severity(s: str) -> str:
     return "None"
 
 
+
+def validate_telemetry_attestation(raw_data: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Enforces Maker != Checker Orthogonality and the Tri-Model Heterogeneous Tiering Architecture.
+    Prevents the 'Simulation Trap' where a Maker self-grades by generating mock verdicts.
+    """
+    defects = []
+    if not raw_data or not isinstance(raw_data, dict):
+        return defects
+
+    telemetry = raw_data.get("telemetry")
+    if not telemetry:
+        defects.append({
+            "defect_id": "ATTEST-001",
+            "severity": "Sev-1",
+            "summary": "CRITICAL ATTESTATION BREACH: Missing subagent execution telemetry. Maker self-grading or simulated verification detected.",
+            "counterexample": "panel_verdicts.json lacks 'telemetry' block containing dispatch nonce and subagent runtime tracking.",
+            "root_cause": "Verification panel was authored directly by Maker rather than dispatched out-of-process to independent subagents.",
+            "negative_constraint": "All verification panels MUST be executed via dispatch_panel.py and record signed subagent telemetry."
+        })
+        return defects
+
+    if telemetry.get("is_simulated") is True:
+        defects.append({
+            "defect_id": "ATTEST-002",
+            "severity": "Sev-1",
+            "summary": "CRITICAL ATTESTATION BREACH: Verdict declared as simulated execution.",
+            "counterexample": "telemetry.is_simulated == true",
+            "root_cause": "Synthetic verification was substituted for genuine adversarial subagent execution.",
+            "negative_constraint": "Simulated verification verdicts are structurally invalid for AWU completion."
+        })
+        return defects
+
+    subagents = telemetry.get("subagents", [])
+    if len(subagents) >= 3:
+        models_used = set(s.get("model_tier", "") for s in subagents if isinstance(s, dict))
+        if len(models_used) <= 1:
+            defects.append({
+                "defect_id": "ATTEST-003",
+                "severity": "Sev-1",
+                "summary": "CRITICAL TRI-MODEL INVARIANT VIOLATION: All panelists executed on identical model tier. Cognitive monoculture detected.",
+                "counterexample": f"All subagents used single model: {list(models_used)}",
+                "root_cause": "OMP task.agentModelOverrides was unmapped, defaulting all subagents to parent session model.",
+                "negative_constraint": "Panelists 1 & 2 MUST run on Deep Reasoning tier (Gemini Pro), and Panelist 3 MUST run on Macro-Reasoning tier (Claude Opus 5.5)."
+            })
+
+    return defects
+
+
 def load_waivers(unit_dir: Path, sess_dir: Path, raw_verdicts_data: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Loads cryptographic/architectural waivers from unit_dir, sess_dir, or inline in verdicts."""
     waivers: List[Dict[str, Any]] = []
@@ -209,6 +258,7 @@ def formal_adjudicate_unit(
     session_path: str = None,
     workspace_root: str = None,
     json_output: bool = False,
+    enforce_telemetry: bool = False,
     enforce_evidence_check: bool = True
 ) -> Dict[str, Any]:
     sess_dir = Path(session_path).resolve() if session_path else find_latest_session(workspace_root)
@@ -266,6 +316,14 @@ def formal_adjudicate_unit(
                 if isinstance(evidence, list) and len(evidence) == 0:
                     if not json_output:
                         print(f"\033[33m[WARN] Panelist {idx+1} approved without supplying concrete falsification evidence.\033[0m")
+    # Enforce subagent execution telemetry attestation
+    if enforce_telemetry and raw_verdicts_data:
+        attestation_defects = validate_telemetry_attestation(raw_verdicts_data)
+        if attestation_defects:
+            if panelists:
+                panelists[-1]["defects"].extend(attestation_defects)
+                panelists[-1]["vote"] = "REJECT"
+                panelists[-1]["highest_severity"] = "Sev-1"
 
     # 2. Defect Verification & Cryptographic Waiver Processing
     active_waivers = load_waivers(unit_dir, sess_dir, raw_verdicts_data)

@@ -184,6 +184,18 @@ This guarantees all 5 mandatory files are instantiated: `briefing.json`, `briefi
   ```
   *(Any unauthorized file modification triggers an immediate Sev-1 Frame Breach Veto).*
 #### 3. Parallel 3-Agent Adversarial Verification Panel
+- **OMP Subagent Model Routing Prerequisite**:
+  Verify that OMP subagent routing table (`cfg://task/agentModelOverrides`) maps:
+  - `reviewer` -> `anthropic/claude-opus-5-5:xhigh` (or `@architect`)
+  - `security-reviewer` -> `google-antigravity/gemini-3.1-pro:high` (or `@slow`)
+- **Automated Dispatch Execution**:
+  Execute the multi-model adversarial panel using:
+  ```bash
+  python3 ~/.omp/agent/skills/dag/scripts/dispatch_panel.py --unit-id "<AWU-ID>"
+  # Or using the unified CLI:
+  ~/.omp/agent/skills/dag/scripts/fdag.sh panel --unit-id "<AWU-ID>"
+  ```
+  *(CRITICAL ANTI-SIMULATION RULE: Under NO circumstances may a Maker author or mock `panel_verdicts.json` directly. `adjudicate_panel.py` verifies signed subagent execution telemetry and triggers an unappealable Sev-1 Simulation Breach Veto if subagent telemetry is missing or simulated).*
 - Launch all 3 independent Checker subagents concurrently in a single OMP `task` batch call (or `eval` workpool):
   - **Panelist 1 (Correctness & Contract Falsifier)**: `agent: 'reviewer'`, Deep reasoning tier (`Gemini Pro Deep Think` or configured slow model role).
   - **Panelist 2 (Security, Invariants & Boundary Auditor)**: `agent: 'security-reviewer'`, Deep reasoning tier (`Gemini Pro Deep Think` or configured slow model role).

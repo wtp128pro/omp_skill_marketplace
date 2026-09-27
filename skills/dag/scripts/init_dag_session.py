@@ -187,6 +187,27 @@ flowchart TD
 """
     session_debrief_path.write_text(session_debrief_skeleton, encoding="utf-8")
 
+    # Emit subagent routing specification to guarantee tri-model architecture
+    routing_spec = {
+        "maker_tier": {
+            "agent": "task",
+            "recommended_role": "default",
+            "model": "google-antigravity/gemini-3.8-flash:high"
+        },
+        "checker_tiers": {
+            "Panelist1_Correctness": {"agent": "reviewer", "role": "slow", "model": "google-antigravity/gemini-3.1-pro:high"},
+            "Panelist2_Security": {"agent": "security-reviewer", "role": "slow", "model": "google-antigravity/gemini-3.1-pro:high"},
+            "Panelist3_SystemicSentinel": {"agent": "reviewer", "role": "architect", "model": "anthropic/claude-opus-5-5:xhigh"}
+        },
+        "omp_cfg_recommendation": {
+            "task.agentModelOverrides": {
+                "reviewer": "anthropic/claude-opus-5-5:xhigh",
+                "security-reviewer": "google-antigravity/gemini-3.1-pro:high"
+            }
+        }
+    }
+    (dag_dir / "subagent_routing_matrix.json").write_text(json.dumps(routing_spec, indent=2), encoding="utf-8")
+
     result = {
         "SessionPath": str(session_path),
         "SessionDirName": session_dirname,

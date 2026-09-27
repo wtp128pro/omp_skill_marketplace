@@ -178,6 +178,19 @@ def cmd_test(args):
     sys.exit(res.returncode)
 
 
+
+def cmd_panel(args):
+    script = Path(__file__).parent / "dispatch_panel.py"
+    cmd = [sys.executable, str(script), "--unit-id", args.unit_id]
+    if args.session_path:
+        cmd.extend(["--session-path", args.session_path])
+    if getattr(args, "dry_run", False):
+        cmd.append("--dry-run")
+    if getattr(args, "json", False):
+        cmd.append("--json")
+    res = subprocess.run(cmd)
+    sys.exit(res.returncode)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="fdag",
@@ -232,6 +245,14 @@ def main():
     p_adj.add_argument("--workspace-root", help="Workspace root")
     p_adj.add_argument("--json", action="store_true", help="Emit JSON")
     p_adj.set_defaults(func=cmd_adjudicate)
+
+    # panel
+    p_pan = subparsers.add_parser("panel", help="Dispatch multi-model adversarial verification panel via subagents")
+    p_pan.add_argument("--unit-id", required=True, help="Unit ID (e.g. AWU-001)")
+    p_pan.add_argument("--session-path", help="Session directory")
+    p_pan.add_argument("--dry-run", action="store_true", help="Dry-run: generate task payload without dispatch")
+    p_pan.add_argument("--json", action="store_true", help="Emit JSON")
+    p_pan.set_defaults(func=cmd_panel)
 
     # scorecard
     p_sc = subparsers.add_parser("scorecard", help="Audit 5-Point Enterprise Invariant Readiness Scorecard")
