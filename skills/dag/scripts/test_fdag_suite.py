@@ -36,7 +36,12 @@ from scaffold_dag_unit import formal_scaffold_unit
 from init_dag_session import init_dag_session
 from dispatch_panel import build_panel_tasks
 from audit_readiness_scorecard import audit_readiness_criteria
-from input_gap_auditor import audit_specification_text
+from input_gap_auditor import (
+    audit_specification_text,
+    audit_session_cartography,
+    is_invariant_present_and_declared,
+    extract_markdown_gaps,
+)
 from dag_utils import find_resource_file
 from socratic_dialogue import (
     validate_socratic_dialogue_item,
@@ -46,6 +51,7 @@ from socratic_dialogue import (
     register_assumption_invalidation,
     resolve_assumption_invalidation,
     check_plain_language_demystification,
+    add_socratic_dialogue,
 )
 
 class TestFDAGSchemas(unittest.TestCase):
@@ -590,6 +596,120 @@ class TestSocraticDialogueEngine(unittest.TestCase):
         self.assertEqual(payload["recommended"], 0)
         self.assertEqual(len(payload["options"]), 2)
         self.assertFalse(payload["options"][0]["label"].startswith("(Recommended)"))
+
+    def test_is_invariant_present_and_declared_with_negation(self):
+        # Negated / missing invariants must return False
+        self.assertFalse(is_invariant_present_and_declared("timeout", "The timeout SLA is missing and unstated."))
+        self.assertFalse(is_invariant_present_and_declared("isolation level", "Postgres transaction without isolation level."))
+        self.assertFalse(is_invariant_present_and_declared("pessimistic lock", "Database locking is unstated and pending."))
+        # Explicitly declared invariants must return True
+        self.assertTrue(is_invariant_present_and_declared("timeout", "Outbound HTTP call bounded by 5000ms timeout SLA."))
+        self.assertTrue(is_invariant_present_and_declared("isolation level", "Enforce SERIALIZABLE isolation level block."))
+        self.assertTrue(is_invariant_present_and_declared("pessimistic lock", "Query row with SELECT FOR UPDATE pessimistic lock."))
+
+    def test_extract_markdown_gaps_from_input_gap_analysis(self):
+        sample_md = """# Input Gap Analysis (IGA)
+
+## 1. Input Parameter & Contract Audit
+| Parameter | Status | Citation | Rationale |
+| Token Expiry TTL | UNRESOLVED | RFC 7519 | Expiration window unstated |
+| Algorithm Pinning | RESOLVED | RFC 7519 | Hardcoded HMAC-SHA256 |
+
+## 2. Unverified Gaps & Blocking Inquiries
+*(Document any missing requirements; prohibit arbitrary assumptions)*
+- Refresh token rotation strategy is unstated.
+- Database deadlock retry limit is missing.
+"""
+        gaps = extract_markdown_gaps(sample_md)
+        self.assertEqual(len(gaps), 3)
+        gap_names = [g["name"] for g in gaps]
+        self.assertIn("Token Expiry TTL", gap_names)
+        self.assertTrue(any("Refresh token" in name for name in gap_names))
+        self.assertTrue(any("deadlock retry" in name for name in gap_names))
+
+    def test_init_session_with_task_description(self):
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            res = init_dag_session(
+                task_moniker="auth-test",
+                workspace_root=tmp.name,
+                task_description="Build token authentication with amount parameter."
+            )
+            sess_path = Path(res["SessionPath"])
+            spec_path = sess_path / "00_cartography" / "task_specification.md"
+            self.assertTrue(spec_path.exists())
+            self.assertIn("Build token authentication with amount parameter.", spec_path.read_text(encoding="utf-8"))
+
+            # Manifest must contain task_description
+            manifest = json.loads((sess_path / "01_dag" / "dag_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest.get("task_description"), "Build token authentication with amount parameter.")
+        finally:
+            tmp.cleanup()
+
+    def test_audit_session_cartography_with_task_spec_detects_gaps(self):
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            res = init_dag_session(
+                task_moniker="auth-test",
+                workspace_root=tmp.name,
+                task_description="Build payment settlement with amount."
+            )
+            sess_path = Path(res["SessionPath"])
+            audit_res = audit_session_cartography(session_dir=sess_path)
+            # Should detect gaps for settlement (GAP-C3-01) and amount (GAP-C1-02)
+            self.assertTrue(audit_res["is_blocking"])
+            self.assertGreater(audit_res["total_gaps_found"], 0)
+            gap_ids = [g["gap_id"] for g in audit_res["detected_gaps"]]
+            self.assertIn("GAP-C1-02", gap_ids)
+        finally:
+            tmp.cleanup()
+
+    def test_add_socratic_dialogue_and_resolve(self):
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            res = init_dag_session(task_moniker="custom-dialogue-test", workspace_root=tmp.name)
+            sess_path = Path(res["SessionPath"])
+
+            # Add dialogue
+            add_res = add_socratic_dialogue(
+                question="Which token storage mechanism should be enforced?",
+                context="Token storage is unstated in user requirements.",
+                recommended_label="PostgreSQL encrypted token table",
+                recommended_explanation="Stores tokens in Postgres with AES encryption.",
+                alt_label="In-memory local dictionary",
+                alt_explanation="Stores tokens in RAM only.",
+                session_dir=sess_path
+            )
+            self.assertTrue(add_res["success"])
+            self.assertEqual(add_res["dialogue_id"], "SOCRATIC-001")
+
+            # Audit should be PENDING and blocking
+            audit_res = audit_layered_input_clarification(session_dir=sess_path)
+            self.assertEqual(audit_res["status"], "PENDING")
+            self.assertTrue(audit_res["is_blocking"])
+            self.assertEqual(audit_res["pending_questions"], 1)
+
+            # Step should return this question
+            step = step_socratic_dialogue(session_dir=sess_path)
+            self.assertIsNotNone(step)
+            self.assertEqual(step["dialogue_id"], "SOCRATIC-001")
+            self.assertTrue(step["options"][0]["is_recommended"])
+
+            # Resolve dialogue
+            resolve_res = resolve_socratic_dialogue(
+                dialogue_id="SOCRATIC-001",
+                selected_option_id="OPT-1",
+                session_dir=sess_path
+            )
+            self.assertTrue(resolve_res["success"])
+            self.assertTrue(resolve_res["is_all_resolved"])
+
+            # Audit after resolution: should be RESOLVED and non-blocking
+            audit_after = audit_layered_input_clarification(session_dir=sess_path)
+            self.assertEqual(audit_after["status"], "RESOLVED")
+            self.assertFalse(audit_after["is_blocking"])
+        finally:
+            tmp.cleanup()
 
 
 class TestAssumptionInvalidationHumanGate(unittest.TestCase):

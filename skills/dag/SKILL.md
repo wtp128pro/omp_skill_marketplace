@@ -124,11 +124,13 @@ flowchart TD
 
 ### Phase 0: Workspace Initialization
 1. Determine task moniker (e.g., `sqlite-migration`, `auth-refactor`).
-2. Initialize the `.omp_wip` folder structure using the helper script:
+2. Initialize the `.omp_wip` folder structure using the helper script, **passing the verbatim user prompt / task requirements**:
    ```bash
-   python3 ~/.omp/agent/skills/dag/scripts/init_dag_session.py --task-moniker "<task-moniker>"
+   python3 ~/.omp/agent/skills/dag/scripts/init_dag_session.py --task-moniker "<task-moniker>" --task-description "<verbatim user request or task specification>"
    # Or using the shell wrapper:
-   ~/.omp/agent/skills/dag/scripts/init_dag_session.sh --task-moniker "<task-moniker>"
+   ~/.omp/agent/skills/dag/scripts/init_dag_session.sh --task-moniker "<task-moniker>" --task-description "<verbatim user request or task specification>"
+   # Or using the unified CLI:
+   ~/.omp/agent/skills/dag/scripts/fdag.sh init --task-moniker "<task-moniker>" --task-description "<verbatim user request or task specification>"
    ```
 3. Reference: [Cartography Protocol](./references/cartography_protocol.md).
 
@@ -137,14 +139,18 @@ flowchart TD
    - Trace directory structures, active files, modules, import chains, and call graphs.
    - Catalog existing types, interfaces, database schemas, API contracts, and environment invariants.
 2. **Input Gap Analysis (IGA)**:
-   - Identify every input variable, requirement, dependency, and external service.
+   - Identify every input variable, requirement, dependency, and external service from the user request and system interfaces.
    - Audit for ambiguities, missing parameters, edge cases, and underspecified contracts.
    - **Grounding in Reputable Sources**: Validate all external assumptions against authoritative sources (official RFCs, IEEE/ISO standards, GitHub primary repositories). Document citations explicitly.
-   - **Zero Assumptions Rule**: If an input cannot be verified, DO NOT assume. Document it as an unverified gap.
+   - **Zero Assumptions Rule**: If an input cannot be verified, DO NOT assume. Document it as an unverified gap under `## 2. Unverified Gaps & Blocking Inquiries` in `input_gap_analysis.md`.
+   - **Direct Socratic Registration**: If any architectural choices, missing boundaries, or trade-offs require human input, register them immediately as Socratic dialogues:
+     ```bash
+     fdag clarify --add --question "<Target Question>?" --context "<Context from Cartography>" --recommended-label "<Optimal Option>" --recommended-explanation "<Plain language explanation>" --recommended-tradeoff "<Trade-off>" --alt-label "<Alternative Option>" --alt-explanation "<Alternative explanation>" --alt-tradeoff "<Alternative trade-off>"
+     ```
 3. Save deliverables:
    - `.omp_wip/<session>/00_cartography/cartography_report.md`
+   - `.omp_wip/<session>/00_cartography/task_specification.md` (verified ground truth)
    - `.omp_wip/<session>/00_cartography/input_gap_analysis.md`
-
 
 ### Phase 1.5: Layered Socratic Input Clarification & Enhancement Gate
 **Hard Invariant**: This phase is invoked strictly AFTER Cartography (Phase 1) and BEFORE DAG Decomposition (Phase 2) or any subsequent execution stages. No unverified assumptions are permitted to pass into the DAG manifest or AWU briefings.
@@ -153,15 +159,13 @@ flowchart TD
    Run the layered input clarification auditor:
    ```bash
    python3 ~/.omp/agent/skills/dag/scripts/socratic_dialogue.py audit --session-path .omp_wip/<session>/
-   # Or using the shell wrapper:
-   ~/.omp/agent/skills/dag/scripts/socratic_dialogue.sh audit --session-path .omp_wip/<session>/
    # Or using the unified CLI:
    ~/.omp/agent/skills/dag/scripts/fdag.sh clarify --session-path .omp_wip/<session>/
    ```
+   - **Automated Dual-Source Audit**: Automatically audits `00_cartography/task_specification.md` against domain probes AND extracts explicitly documented unverified gaps from `00_cartography/input_gap_analysis.md`.
    - **Layer 1 (Structural & Boundary Audit)**: Audits stated inputs, missing parameter bounds, data types, payload schemas, formats, file paths, and environment constraints against code/filesystem cartography.
    - **Layer 2 (Invariant & Failure-Semantics Audit)**: Audits deep architectural guarantees: concurrency isolation levels (e.g. read committed vs serializable), row/table locks, idempotency token mechanics, timeout SLAs, retry behaviors, partial failure fallbacks, backward compatibility, and immutability invariants.
-   - **Layer 3 (Socratic Intent & Trade-off Clarification)**: Translates every detected input gap, unverified assumption, ambiguity, or potential divergence into a dedicated Socratic dialogue inquiry.
-2. **Formally Enforced Socratic Dialogue Rules**:
+   - **Layer 3 (Socratic Intent & Trade-off Clarification)**: Translates every detected input gap, unverified assumption, ambiguity, or manually registered question into an active Socratic dialogue queue.
    - **Strictly ONE Question Per Dialogue**: The agent is structurally prohibited from batching multiple questions. Exactly one targeted question is presented per turn.
    - **Exhaustive Evaluation of All Options**: Each dialogue must detail architectural trade-offs, pros, cons, and implications for all viable options (minimum 2).
    - **Best Option Presented First & Marked `(Recommended)`**: The optimal choice is always placed at Index 0 and prefixed with `(Recommended)`.
@@ -343,8 +347,10 @@ Before task finalization, a holistic 3-agent adversarial panel evaluates the com
 ## Quick Reference Checklists
 
 ### Before Launching Any Maker:
+- [ ] User task specification preserved in `00_cartography/task_specification.md` via `init_dag_session --task-description`?
 - [ ] Cartography report completed in `00_cartography/`?
 - [ ] Input Gap Analysis grounded in authoritative documentation?
+- [ ] Unverified gaps documented in `input_gap_analysis.md` and/or registered via `fdag clarify --add`?
 - [ ] Any assumptions made? (If yes, STOP and eliminate them).
 - [ ] Phase 1.5 Layered Socratic Input Clarification Gate completed via `fdag clarify`?
 - [ ] Zero unverified assumptions or input gaps remaining before DAG decomposition?

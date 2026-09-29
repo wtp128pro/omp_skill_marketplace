@@ -329,21 +329,20 @@ def audit_layered_input_clarification(
         try:
             stored_manifest = json.loads(dialogues_json.read_text(encoding="utf-8"))
             dialogues = stored_manifest.get("dialogues", [])
-            stored_status = stored_manifest.get("status")
-            if stored_status in ["RESOLVED", "CLEAN_PASS"] or len(dialogues) > 0:
+            if len(dialogues) > 0:
                 pending_count = sum(1 for d in dialogues if d.get("status") != "RESOLVED")
-                is_resolved = (pending_count == 0) and (stored_status != "PENDING" or len(dialogues) > 0)
-                status = stored_status if stored_status in ["RESOLVED", "CLEAN_PASS"] else ("RESOLVED" if is_resolved else "IN_PROGRESS")
+                is_resolved = (pending_count == 0)
+                status = "RESOLVED" if is_resolved else "PENDING"
                 _sync_manifest_input_clarification(sess, status=status, total=len(dialogues), resolved=len(dialogues) - pending_count)
                 return {
                     "status": status,
-                    "is_blocking": not (status in ["RESOLVED", "CLEAN_PASS"]),
+                    "is_blocking": not is_resolved,
                     "session_path": str(sess),
                     "total_questions": len(dialogues),
                     "resolved_questions": len(dialogues) - pending_count,
                     "pending_questions": pending_count,
                     "dialogues": dialogues,
-                    "explanation": "All input clarification questions resolved." if (status in ["RESOLVED", "CLEAN_PASS"]) else f"{pending_count} Socratic dialogue question(s) pending human resolution."
+                    "explanation": "All input clarification questions resolved." if is_resolved else f"{pending_count} Socratic dialogue question(s) pending human resolution."
                 }
         except Exception:
             pass
@@ -466,6 +465,141 @@ def format_socratic_for_ask(item: Dict[str, Any]) -> Dict[str, Any]:
         "options": ask_options
     }
 
+def add_socratic_dialogue(
+    question: str,
+    context: str = "",
+    layer: str = "Layer 3: Socratic Intent & Trade-off Clarification",
+    recommended_label: str = "Enforce verified engineering standard",
+    recommended_explanation: str = "We apply the canonical pattern to prevent runtime defects.",
+    recommended_pros: Optional[List[str]] = None,
+    recommended_cons: Optional[List[str]] = None,
+    recommended_tradeoff: str = "Requires explicit configuration up front, but eliminates edge case regressions.",
+    alt_label: str = "Use lenient fallback defaults",
+    alt_explanation: str = "We allow unspecified parameters to fall back to generic values.",
+    alt_pros: Optional[List[str]] = None,
+    alt_cons: Optional[List[str]] = None,
+    alt_tradeoff: str = "Simpler to start, but risks hiding unexpected behavior under edge conditions.",
+    options: Optional[List[Dict[str, Any]]] = None,
+    session_dir: Optional[Path] = None,
+    workspace_root: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Manually registers an individual Socratic dialogue inquiry discovered during cartography or execution.
+    Enforces schema compliance, recommendation hierarchy, and updates on-disk ledger.
+    """
+    sess = session_dir or find_latest_session(workspace_root)
+    if not sess or not sess.exists():
+        return {"success": False, "error": "No active session directory found."}
+
+    cart_dir = sess / "00_cartography"
+    cart_dir.mkdir(parents=True, exist_ok=True)
+    dialogues_json = cart_dir / "socratic_dialogues.json"
+    dialogues_md = cart_dir / "socratic_dialogues.md"
+
+    if dialogues_json.exists():
+        try:
+            manifest_data = json.loads(dialogues_json.read_text(encoding="utf-8"))
+        except Exception:
+            manifest_data = {
+                "session_id": sess.name,
+                "dialogue_phase": "phase_1_5_input_clarification",
+                "total_questions": 0,
+                "resolved_questions": 0,
+                "status": "PENDING",
+                "dialogues": []
+            }
+    else:
+        manifest_data = {
+            "session_id": sess.name,
+            "dialogue_phase": "phase_1_5_input_clarification",
+            "total_questions": 0,
+            "resolved_questions": 0,
+            "status": "PENDING",
+            "dialogues": []
+        }
+
+    dialogues = manifest_data.get("dialogues", [])
+    new_idx = len(dialogues) + 1
+    new_id = f"SOCRATIC-{new_idx:03d}"
+
+    clean_q = question.strip()
+    if not clean_q.endswith("?"):
+        clean_q += "?"
+
+    if not options:
+        rec_clean = recommended_label.strip()
+        if not rec_clean.startswith("(Recommended)"):
+            rec_clean = f"(Recommended) {rec_clean}"
+
+        alt_clean = re.sub(r"^\(Recommended\)\s*", "", alt_label.strip())
+
+        options = [
+            {
+                "id": "OPT-1",
+                "label": rec_clean,
+                "is_recommended": True,
+                "plain_language_explanation": recommended_explanation or "We enforce strict verification checks (rules that prevent invalid parameters) directly at the entrance of each function.",
+                "pros": recommended_pros or ["Guarantees zero unstated assumptions", "Highest system predictability and maintainability"],
+                "cons": recommended_cons or ["Requires explicit caller parameters up front"],
+                "trade_off_analysis": recommended_tradeoff or "Strict boundary enforcement prevents silent data corruption and unexpected crashes downstream."
+            },
+            {
+                "id": "OPT-2",
+                "label": alt_clean or "Use lenient fallback defaults",
+                "is_recommended": False,
+                "plain_language_explanation": alt_explanation or "We define safe standard values whenever parameters are omitted.",
+                "pros": alt_pros or ["Reduces initial setup friction"],
+                "cons": alt_cons or ["Risks masking bugs where callers forgot to pass important parameters"],
+                "trade_off_analysis": alt_tradeoff or "Lenient defaults risk masking upstream defects. Recommended only if caller contracts cannot be modified."
+            }
+        ]
+    else:
+        if len(options) >= 1:
+            options[0]["is_recommended"] = True
+            if not options[0].get("label", "").startswith("(Recommended)"):
+                options[0]["label"] = f"(Recommended) {options[0].get('label', '')}".strip()
+        for opt in options[1:]:
+            opt["is_recommended"] = False
+
+    is_first_active = (len(dialogues) == 0 or all(d.get("status") == "RESOLVED" for d in dialogues))
+    dialogue_item = {
+        "dialogue_id": new_id,
+        "unit_id": "GLOBAL_INPUT",
+        "layer": layer,
+        "question_index": new_idx,
+        "total_in_series": new_idx,
+        "question": clean_q,
+        "context_and_reality": context or "During codebase mapping (Cartography), an unverified specification or architectural trade-off was identified. This decision must be clarified before proceeding.",
+        "options": options,
+        "status": "ACTIVE" if is_first_active else "PENDING",
+        "human_response": None
+    }
+
+    valid, errors = validate_socratic_dialogue_item(dialogue_item)
+    if not valid:
+        return {"success": False, "error": f"Validation failed: {errors}"}
+
+    dialogues.append(dialogue_item)
+    for d in dialogues:
+        d["total_in_series"] = len(dialogues)
+
+    manifest_data["dialogues"] = dialogues
+    manifest_data["total_questions"] = len(dialogues)
+    manifest_data["status"] = "PENDING"
+
+    dialogues_json.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+    _render_dialogues_markdown(dialogues_md, manifest_data)
+    pending_count = sum(1 for d in dialogues if d.get("status") != "RESOLVED")
+    _sync_manifest_input_clarification(sess, status="PENDING", total=len(dialogues), resolved=len(dialogues) - pending_count)
+
+    return {
+        "success": True,
+        "dialogue_id": new_id,
+        "question_index": new_idx,
+        "total_questions": len(dialogues),
+        "status": "PENDING",
+        "dialogue": dialogue_item
+    }
 
 
 def resolve_socratic_dialogue(
@@ -845,6 +979,22 @@ def main():
     p_res.add_argument("--workspace-root", help="Workspace root")
     p_res.add_argument("--json", action="store_true", help="Emit JSON output")
 
+    # add
+    p_add = subparsers.add_parser("add", help="Register a new Socratic dialogue question (Human Gate)")
+    p_add.add_argument("--question", required=True, help="Target question (must end with ?)")
+    p_add.add_argument("--context", default="", help="Context and observable reality")
+    p_add.add_argument("--layer", default="Layer 3: Socratic Intent & Trade-off Clarification", help="Clarification layer")
+    p_add.add_argument("--recommended-label", default="Enforce verified engineering standard", help="Option 1 (Recommended) label")
+    p_add.add_argument("--recommended-explanation", default="", help="Option 1 plain language explanation")
+    p_add.add_argument("--recommended-tradeoff", default="", help="Option 1 trade-off analysis")
+    p_add.add_argument("--alt-label", default="Use lenient fallback defaults", help="Option 2 alternative label")
+    p_add.add_argument("--alt-explanation", default="", help="Option 2 plain language explanation")
+    p_add.add_argument("--alt-tradeoff", default="", help="Option 2 trade-off analysis")
+    p_add.add_argument("--options-json", default="", help="JSON string for custom options array")
+    p_add.add_argument("--session-path", help="Session path")
+    p_add.add_argument("--workspace-root", help="Workspace root")
+    p_add.add_argument("--json", action="store_true", help="Emit JSON output")
+
     # invalidate
     p_inval = subparsers.add_parser("invalidate", help="Register dynamic discovery assumption invalidation (Human Gate)")
     p_inval.add_argument("--unit-id", required=True, help="Unit ID (e.g. AWU-001)")
@@ -903,6 +1053,39 @@ def main():
                         print(f"    Trade-off:   {opt.get('trade_off_analysis')}\n")
                     print(f"To resolve, run:\n  fdag clarify --resolve {next_q.get('dialogue_id')} --option <OPTION_ID>")
                     print("=" * 68 + "\n")
+                sys.exit(1)
+    elif args.command == "add":
+        options = None
+        if args.options_json:
+            try:
+                options = json.loads(args.options_json)
+            except Exception as e:
+                print(f"[ERROR] Failed to parse --options-json: {e}", file=sys.stderr)
+                sys.exit(1)
+        res = add_socratic_dialogue(
+            question=args.question,
+            context=args.context,
+            layer=args.layer,
+            recommended_label=args.recommended_label,
+            recommended_explanation=args.recommended_explanation,
+            recommended_tradeoff=args.recommended_tradeoff,
+            alt_label=args.alt_label,
+            alt_explanation=args.alt_explanation,
+            alt_tradeoff=args.alt_tradeoff,
+            options=options,
+            session_dir=Path(args.session_path).resolve() if args.session_path else None,
+            workspace_root=args.workspace_root
+        )
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            if res.get("success"):
+                print(f"\033[32m✓ Registered Socratic dialogue {res.get('dialogue_id')}.\033[0m")
+                print(f"Target Question: {args.question}")
+                print(f"Total Questions in Series: {res.get('total_questions')}")
+                print(f"Run 'fdag clarify --step' to review or 'fdag clarify --step --ask-format' for OMP ask tool.")
+            else:
+                print(f"\033[31m[ERROR] Failed to add Socratic dialogue: {res.get('error')}\033[0m", file=sys.stderr)
                 sys.exit(1)
     elif args.command == "step":
         res = step_socratic_dialogue(

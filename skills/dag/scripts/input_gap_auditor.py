@@ -36,6 +36,117 @@ except ImportError:
         def find_latest_session(w: Optional[str] = None) -> Optional[Path]:
             return None
 
+# Negation and missingness patterns to prevent false-positive invariant declarations
+NEGATION_PATTERNS = [
+    r"not\s+(?:declared|specified|defined|handled|checked|enforced|configured)",
+    r"(?:missing|unstated|unspecified|unknown|unhandled|omitted|none|without|lacks|no|tbd|todo|unresolved|pending|unchecked|unprotected|unfenced|unbounded)",
+]
+NEGATION_REGEX = re.compile(r"\b(?:" + "|".join(NEGATION_PATTERNS) + r")\b", re.IGNORECASE)
+
+
+def is_invariant_present_and_declared(inv: str, text: str) -> bool:
+    """
+    Checks if invariant `inv` is declared in `text`, taking into account negation/missingness phrases.
+    If the invariant is mentioned in phrases like 'missing timeout', 'timeout is unstated', 'no isolation level',
+    it is NOT considered declared.
+    """
+    lower_inv = inv.lower()
+    lower_text = text.lower()
+
+    if lower_inv not in lower_text:
+        return False
+
+    pattern = r"(?:\b|_)" + re.escape(lower_inv) + r"(?:\b|_)" if re.match(r"^[a-zA-Z0-9_ ]+$", lower_inv) else re.escape(lower_inv)
+
+    declared_instances = 0
+    for match in re.finditer(pattern, lower_text):
+        start = max(0, match.start() - 50)
+        end = min(len(lower_text), match.end() + 50)
+        window = lower_text[start:end]
+
+        # Check if window contains negation indicators
+        if NEGATION_REGEX.search(window):
+            continue
+        declared_instances += 1
+
+    return declared_instances > 0
+
+
+def extract_markdown_gaps(md_text: str) -> List[Dict[str, Any]]:
+    """
+    Extracts explicitly documented unverified gaps and blocking inquiries from Markdown.
+    Parses table rows with unresolved status and bullet points under unverified gap headings.
+    """
+    detected_gaps: List[Dict[str, Any]] = []
+    lines = md_text.splitlines()
+
+    in_unverified_section = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Check section headers
+        if stripped.startswith("#"):
+            lower_h = stripped.lower()
+            if "unverified gap" in lower_h or "blocking inquir" in lower_h:
+                in_unverified_section = True
+            elif "input parameter & contract audit" in lower_h or "three-class input gap" in lower_h:
+                in_unverified_section = False
+            elif stripped.startswith("## ") and not ("gap" in lower_h or "inquir" in lower_h):
+                in_unverified_section = False
+
+        # Parse table rows with UNRESOLVED / PENDING / BLOCKING status
+        if stripped.startswith("|") and stripped.endswith("|"):
+            cells = [c.strip() for c in stripped.split("|")[1:-1]]
+            if len(cells) >= 2:
+                if all(c.startswith("-") or c.startswith(":") for c in cells):
+                    continue
+                lower_cells = [c.lower() for c in cells]
+                if any("status" in c for c in lower_cells) or any("parameter" in c for c in lower_cells):
+                    continue
+
+                unresolved_words = ["unresolved", "pending", "missing", "blocking", "ambiguous", "todo", "gap"]
+                has_unresolved = any(any(u in c for u in unresolved_words) for c in lower_cells)
+                is_template = any("{{" in c for c in cells)
+
+                if has_unresolved and not is_template:
+                    param_name = cells[0] if len(cells) > 0 else "Unstated Parameter"
+                    desc = " | ".join(cells)
+                    detected_gaps.append({
+                        "gap_id": f"GAP-MD-{len(detected_gaps)+1:03d}",
+                        "category": "Class 1: Unstated Invariants & Boundary Preconditions" if "invariant" in desc.lower() or "bound" in desc.lower() else "Class 2: Contractual & Semantic Ambiguities",
+                        "name": param_name.strip("`* "),
+                        "severity": "Sev-1",
+                        "trigger_keywords": ["documented_gap"],
+                        "missing_invariants": [param_name.strip("`* ")],
+                        "description": f"Documented unverified gap in contract audit: {desc}",
+                        "recommended_mitigation": f"Clarify requirements for {param_name} before proceeding to DAG decomposition."
+                    })
+            continue
+
+        # Parse bullet points under Unverified Gaps section
+        if in_unverified_section:
+            bullet_match = re.match(r"^[-*]\s+(.*)$", stripped) or re.match(r"^\d+\.\s+(.*)$", stripped)
+            if bullet_match:
+                item_text = bullet_match.group(1).strip()
+                if item_text.startswith("*(") and item_text.endswith(")*"):
+                    continue
+                if not item_text or item_text.startswith("<!--"):
+                    continue
+
+                detected_gaps.append({
+                    "gap_id": f"GAP-MD-{len(detected_gaps)+1:03d}",
+                    "category": "Class 2: Contractual & Semantic Ambiguities",
+                    "name": item_text.split(":")[0].split(" - ")[0].strip("`* ")[:40],
+                    "severity": "Sev-1",
+                    "trigger_keywords": ["documented_gap"],
+                    "missing_invariants": [item_text[:30]],
+                    "description": item_text,
+                    "recommended_mitigation": f"Clarify specification: {item_text}"
+                })
+
+    return detected_gaps
+
 
 # Domain Heuristic Probe Signatures for Gap Detection
 CLASS_1_PROBES = [
@@ -122,8 +233,8 @@ def audit_specification_text(spec_text: str) -> Dict[str, Any]:
             # Check if domain context is activated by keywords
             keyword_matches = [kw for kw in probe["keywords"] if re.search(r"\b" + re.escape(kw) + r"\b", lower_text)]
             if len(keyword_matches) >= 1:
-                # Context is active; check if required invariants are declared
-                invariant_matches = [inv for inv in probe["required_invariants"] if inv in lower_text]
+                # Context is active; check if required invariants are declared (with negation check)
+                invariant_matches = [inv for inv in probe["required_invariants"] if is_invariant_present_and_declared(inv, lower_text)]
                 if not invariant_matches:
                     detected_gaps.append({
                         "gap_id": probe["id"],
@@ -164,7 +275,7 @@ def audit_specification_text(spec_text: str) -> Dict[str, Any]:
 
 
 def audit_session_cartography(session_dir: Optional[Path] = None, workspace_root: Optional[str] = None) -> Dict[str, Any]:
-    """Audits the active session's cartography files."""
+    """Audits the active session's cartography files and task specifications."""
     sess = session_dir or find_latest_session(workspace_root)
     if not sess or not sess.exists():
         return {
@@ -173,12 +284,23 @@ def audit_session_cartography(session_dir: Optional[Path] = None, workspace_root
             "explanation": "No active .omp_wip session directory found."
         }
 
-    iga_path = sess / "00_cartography" / "input_gap_analysis.md"
-    cart_path = sess / "00_cartography" / "cartography_report.md"
+    cart_dir = sess / "00_cartography"
+    task_spec_path = cart_dir / "task_specification.md"
+    iga_path = cart_dir / "input_gap_analysis.md"
+    cart_path = cart_dir / "cartography_report.md"
 
     text_to_audit = ""
+    has_task_spec = False
+    if task_spec_path.exists():
+        spec_raw = task_spec_path.read_text(encoding="utf-8").strip()
+        if spec_raw and "Pending user task description" not in spec_raw:
+            text_to_audit += "\n" + spec_raw
+            has_task_spec = True
+
+    iga_text = ""
     if iga_path.exists():
-        text_to_audit += "\n" + iga_path.read_text(encoding="utf-8")
+        iga_text = iga_path.read_text(encoding="utf-8")
+        text_to_audit += "\n" + iga_text
     if cart_path.exists():
         text_to_audit += "\n" + cart_path.read_text(encoding="utf-8")
 
@@ -186,13 +308,59 @@ def audit_session_cartography(session_dir: Optional[Path] = None, workspace_root
         return {
             "verdict": "BLOCKING_VETO",
             "is_blocking": True,
-            "explanation": f"Cartography report and input gap analysis missing or empty under {sess / '00_cartography'}"
+            "explanation": f"Cartography report and input gap analysis missing or empty under {cart_dir}"
         }
 
+    # 1. Probe-based audit on specification & cartography text
     res = audit_specification_text(text_to_audit)
-    res["session_path"] = str(sess)
-    return res
+    detected_gaps = list(res.get("detected_gaps", []))
 
+    # 2. Markdown-based gap extraction from input_gap_analysis.md
+    if iga_text:
+        md_gaps = extract_markdown_gaps(iga_text)
+        for mg in md_gaps:
+            # Deduplicate by description
+            if not any(mg["description"].lower() in g.get("description", "").lower() for g in detected_gaps):
+                detected_gaps.append(mg)
+
+    # 3. If task specification is missing and cartography is just skeleton placeholder
+    is_cart_skeleton = (
+        "Reconnaissance In Progress" in text_to_audit
+        and "(To be populated during Phase 1)" in text_to_audit
+        and not has_task_spec
+    )
+    if not has_task_spec and is_cart_skeleton and len(detected_gaps) == 0:
+        detected_gaps.append({
+            "gap_id": "GAP-SPEC-001",
+            "category": "Class 1: Unstated Invariants & Boundary Preconditions",
+            "name": "Missing Task Specification",
+            "severity": "Sev-1",
+            "trigger_keywords": ["task_specification"],
+            "missing_invariants": ["task_description"],
+            "description": "No user task specification or requirements provided under 00_cartography/task_specification.md.",
+            "recommended_mitigation": "Provide user task requirements in 00_cartography/task_specification.md or pass --task-description to init_dag_session.py."
+        })
+
+    sev1_count = sum(1 for g in detected_gaps if g["severity"] == "Sev-1")
+    sev2_count = sum(1 for g in detected_gaps if g["severity"] == "Sev-2")
+    is_blocking = (sev1_count > 0)
+    verdict = "BLOCKING_VETO" if is_blocking else ("WARN_AMBIGUITY" if sev2_count > 0 else "CLEAN_PASS")
+
+    res["verdict"] = verdict
+    res["is_blocking"] = is_blocking
+    res["sev_1_count"] = sev1_count
+    res["sev_2_count"] = sev2_count
+    res["total_gaps_found"] = len(detected_gaps)
+    res["detected_gaps"] = detected_gaps
+    res["session_path"] = str(sess)
+    res["explanation"] = (
+        f"SEV-1 BLOCKING VETO: {sev1_count} critical input gap(s) detected. The Plausibility Trap dictates that code generation must be halted until invariants are declared."
+        if is_blocking else
+        f"PASSED WITH CAVEATS: {sev2_count} contractual ambiguities found. Non-blocking defaults may be applied with documentation."
+        if sev2_count > 0 else
+        "PASSED: Zero latent input gaps detected. Specification is contractually sound for AWU decomposition."
+    )
+    return res
 
 def main():
     parser = argparse.ArgumentParser(description="Input Gap Analysis (IGA) & Plausibility Trap Auditor.")

@@ -44,7 +44,23 @@ def find_workspace_root(start_dir: Path) -> Path:
     return curr
 
 
-def init_dag_session(task_moniker: str = "dag-task", workspace_root: str = None, json_output: bool = False):
+def init_dag_session(
+    task_moniker: str = "dag-task",
+    workspace_root: str = None,
+    json_output: bool = False,
+    task_description: str = "",
+    spec_file: str = ""
+):
+    if spec_file:
+        sf_path = Path(spec_file).resolve()
+        if sf_path.exists():
+            try:
+                task_description = sf_path.read_text(encoding="utf-8").strip()
+            except Exception as e:
+                print(f"[WARN] Failed to read spec file {sf_path}: {e}", file=sys.stderr)
+        else:
+            print(f"[WARN] Specified spec file does not exist: {sf_path}", file=sys.stderr)
+
     if workspace_root:
         ws_path = Path(workspace_root).resolve()
         if not ws_path.exists():
@@ -52,7 +68,6 @@ def init_dag_session(task_moniker: str = "dag-task", workspace_root: str = None,
             sys.exit(1)
     else:
         ws_path = find_workspace_root(Path.cwd())
-
     safe_moniker = sanitize_moniker(task_moniker)
     now = datetime.datetime.now()
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
@@ -80,6 +95,7 @@ def init_dag_session(task_moniker: str = "dag-task", workspace_root: str = None,
         "$schema": "http://json-schema.org/draft-07/schema#",
         "session_id": session_dirname,
         "task_moniker": safe_moniker,
+        "task_description": task_description or "",
         "graph_version": 2,
         "created_at": iso_now,
         "input_clarification": {
@@ -108,12 +124,13 @@ flowchart TD
 
     # 3. Cartography Report Skeleton
     cartography_path = session_path / "00_cartography" / "cartography_report.md"
+    task_desc_section = f"\n- **Task Objective & User Specification**: {task_description}" if task_description else "\n- **Task Objective & User Specification**: *(To be populated from user prompt)*"
     cartography_skeleton = f"""# Cartography & System Architecture Report
 
 ## 1. Executive Summary
 - **Session Moniker**: {safe_moniker}
 - **Generated At**: {iso_now}
-- **Session Directory**: {session_path}
+- **Session Directory**: {session_path}{task_desc_section}
 
 ## 2. Static Codebase Topology
 - **Root Directory**: {ws_path}
@@ -130,11 +147,33 @@ flowchart TD
 """
     cartography_path.write_text(cartography_skeleton, encoding="utf-8")
 
+    # 3.5 Task Specification (Phase 1 / 1.5 input audit ground truth)
+    task_spec_path = session_path / "00_cartography" / "task_specification.md"
+    if task_description:
+        task_spec_content = f"""# Task Specification & User Requirements
+
+## 1. Original User Request
+{task_description}
+
+## 2. Stated Scope & Invariants
+*(Cross-referenced against codebase topology and input gap analysis)*
+"""
+    else:
+        task_spec_content = """# Task Specification & User Requirements
+
+## 1. Original User Request
+*(Pending user task description. Provide via --task-description or edit this file)*
+
+## 2. Stated Scope & Invariants
+*(To be populated during Phase 1 Cartography)*
+"""
+    task_spec_path.write_text(task_spec_content, encoding="utf-8")
     # 4. Input Gap Analysis Skeleton
     iga_path = session_path / "00_cartography" / "input_gap_analysis.md"
-    iga_skeleton = """# Input Gap Analysis (IGA) & Reputable Source Citations
+    iga_scope_section = f"## 0. User Specification & Scope\n{task_description}\n\n" if task_description else ""
+    iga_skeleton = f"""# Input Gap Analysis (IGA) & Reputable Source Citations
 
-## 1. Input Parameter & Contract Audit
+{iga_scope_section}## 1. Input Parameter & Contract Audit
 | Parameter / Requirement | Status | Reputable Source Citation | Resolution Rationale |
 | :--- | :--- | :--- | :--- |
 
@@ -142,7 +181,6 @@ flowchart TD
 *(Document any missing requirements; prohibit arbitrary assumptions)*
 """
     iga_path.write_text(iga_skeleton, encoding="utf-8")
-
     # 4.5 Socratic Dialogues Ledger Skeleton (Phase 1.5)
     socratic_path = cartography_dir / "socratic_dialogues.json"
     socratic_skeleton = {
@@ -234,6 +272,7 @@ flowchart TD
         "SessionDirName": session_dirname,
         "ManifestPath": str(manifest_path),
         "CartographyPath": str(cartography_path),
+        "TaskSpecificationPath": str(task_spec_path),
         "IgaPath": str(iga_path),
         "SocraticDialoguesPath": str(socratic_path),
         "DagGraphPath": str(dag_graph_path),
@@ -249,6 +288,8 @@ flowchart TD
         print(f"Session Directory: {session_path}")
         print(f"Manifest Path:     {manifest_path}")
         print(f"Cartography Path:  {cartography_path}")
+        if task_description:
+            print(f"Task Spec Path:    {task_spec_path}")
 
     return result
 
@@ -256,12 +297,19 @@ flowchart TD
 def main():
     parser = argparse.ArgumentParser(description="Initialize a new DAG orchestration session in .omp_wip.")
     parser.add_argument("-t", "--task-moniker", default="dag-task", help="Short task moniker / slug")
+    parser.add_argument("-d", "--task-description", "--task-desc", "--spec-text", default="", help="Verbatim user request or task specification")
+    parser.add_argument("-s", "--spec-file", default="", help="Path to raw specification text file")
     parser.add_argument("-w", "--workspace-root", default="", help="Workspace root directory")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
     args = parser.parse_args()
 
-    init_dag_session(task_moniker=args.task_moniker, workspace_root=args.workspace_root or None, json_output=args.json)
-
+    init_dag_session(
+        task_moniker=args.task_moniker,
+        workspace_root=args.workspace_root or None,
+        json_output=args.json,
+        task_description=args.task_description or "",
+        spec_file=args.spec_file or ""
+    )
 
 if __name__ == "__main__":
     main()

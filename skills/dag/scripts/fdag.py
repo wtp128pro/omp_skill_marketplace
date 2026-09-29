@@ -33,9 +33,10 @@ def cmd_init(args):
     init_dag_session(
         task_moniker=args.task_moniker or "fdag-session",
         workspace_root=args.workspace_root or None,
-        json_output=getattr(args, "json", False)
+        json_output=getattr(args, "json", False),
+        task_description=getattr(args, "task_description", "") or "",
+        spec_file=getattr(args, "spec_file", "") or ""
     )
-
 def cmd_validate(args):
     from validate_dag import validate_formal_dag
     ok = validate_formal_dag(
@@ -193,9 +194,48 @@ def cmd_clarify(args):
         step_socratic_dialogue,
         resolve_socratic_dialogue,
         format_socratic_for_ask,
+        add_socratic_dialogue,
     )
     import json
     sess_dir = Path(args.session_path).resolve() if args.session_path else None
+
+    if getattr(args, "add", False):
+        if not getattr(args, "question", None):
+            print("[ERROR] --question <question> is required with --add", file=sys.stderr)
+            sys.exit(1)
+        options = None
+        if getattr(args, "options_json", None):
+            try:
+                options = json.loads(args.options_json)
+            except Exception as e:
+                print(f"[ERROR] Failed to parse --options-json: {e}", file=sys.stderr)
+                sys.exit(1)
+        res = add_socratic_dialogue(
+            question=args.question,
+            context=getattr(args, "context", "") or "",
+            layer=getattr(args, "layer", "Layer 3: Socratic Intent & Trade-off Clarification") or "Layer 3: Socratic Intent & Trade-off Clarification",
+            recommended_label=getattr(args, "recommended_label", "Enforce verified engineering standard") or "Enforce verified engineering standard",
+            recommended_explanation=getattr(args, "recommended_explanation", "") or "",
+            recommended_tradeoff=getattr(args, "recommended_tradeoff", "") or "",
+            alt_label=getattr(args, "alt_label", "Use lenient fallback defaults") or "Use lenient fallback defaults",
+            alt_explanation=getattr(args, "alt_explanation", "") or "",
+            alt_tradeoff=getattr(args, "alt_tradeoff", "") or "",
+            options=options,
+            session_dir=sess_dir,
+            workspace_root=args.workspace_root
+        )
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            if res.get("success"):
+                print(f"\033[32m✓ Registered Socratic dialogue {res.get('dialogue_id')}.\033[0m")
+                print(f"Target Question: {args.question}")
+                print(f"Total Questions in Series: {res.get('total_questions')}")
+                print(f"Run 'fdag clarify --step' to review or 'fdag clarify --step --ask-format' for OMP ask tool.")
+            else:
+                print(f"\033[31m[ERROR] Failed to add Socratic dialogue: {res.get('error')}\033[0m", file=sys.stderr)
+                sys.exit(1)
+        return
 
     if args.step:
         res = step_socratic_dialogue(session_dir=sess_dir, workspace_root=args.workspace_root)
@@ -343,6 +383,8 @@ def main():
     # init
     p_init = subparsers.add_parser("init", help="Initialize a new F-DAG session")
     p_init.add_argument("--task-moniker", required=True, help="Moniker for session")
+    p_init.add_argument("-d", "--task-description", "--task-desc", "--spec-text", default="", help="Verbatim user request or task specification")
+    p_init.add_argument("-s", "--spec-file", default="", help="Path to raw specification text file")
     p_init.add_argument("--workspace-root", help="Root directory")
     p_init.add_argument("--json", action="store_true", help="Emit JSON output")
     p_init.set_defaults(func=cmd_init)
@@ -424,6 +466,17 @@ def main():
     p_clar.add_argument("--resolve", help="Dialogue ID to resolve (e.g. SOCRATIC-001)")
     p_clar.add_argument("--option", help="Option ID selected by human (e.g. OPT-1)")
     p_clar.add_argument("--custom", help="Custom user clarification or rationale")
+    p_clar.add_argument("--add", action="store_true", help="Register a new Socratic dialogue question (Human Gate)")
+    p_clar.add_argument("--question", help="Target question (must end with ?)")
+    p_clar.add_argument("--context", default="", help="Context and observable reality")
+    p_clar.add_argument("--layer", default="Layer 3: Socratic Intent & Trade-off Clarification", help="Clarification layer")
+    p_clar.add_argument("--recommended-label", default="Enforce verified engineering standard", help="Option 1 (Recommended) label")
+    p_clar.add_argument("--recommended-explanation", default="", help="Option 1 plain language explanation")
+    p_clar.add_argument("--recommended-tradeoff", default="", help="Option 1 trade-off analysis")
+    p_clar.add_argument("--alt-label", default="Use lenient fallback defaults", help="Option 2 alternative label")
+    p_clar.add_argument("--alt-explanation", default="", help="Option 2 plain language explanation")
+    p_clar.add_argument("--alt-tradeoff", default="", help="Option 2 trade-off analysis")
+    p_clar.add_argument("--options-json", default="", help="JSON string for custom options array")
     p_clar.add_argument("--json", action="store_true", help="Emit JSON output")
     p_clar.set_defaults(func=cmd_clarify)
 

@@ -159,16 +159,19 @@ When validating inputs, libraries, or protocols, only the following sources are 
 
 All cartography outputs must be written to disk in the session directory:
 
-1. `.omp_wip/<session>/00_cartography/cartography_report.md`:
+1. `.omp_wip/<session>/00_cartography/task_specification.md`:
+   - Original verbatim user request
+   - Stated scope, requirements, and constraints
+2. `.omp_wip/<session>/00_cartography/cartography_report.md`:
    - System topology diagram
    - Module matrix
    - Invariant catalog
    - Blast radius analysis
-2. `.omp_wip/<session>/00_cartography/input_gap_analysis.md`:
+3. `.omp_wip/<session>/00_cartography/input_gap_analysis.md`:
    - Gap audit table
    - Reputable source citations
-   - Resolution status for every ambiguity (Resolved via Spec / Non-Blocking Default / Blocking Escalation)
-3. `.omp_wip/<session>/00_cartography/socratic_dialogues.json`:
+   - Documented unverified gaps and blocking inquiries
+4. `.omp_wip/<session>/00_cartography/socratic_dialogues.json`:
    - Machine-verifiable record of all Socratic clarification inquiries, option evaluations, and human decisions.
-4. `.omp_wip/<session>/00_cartography/socratic_dialogues.md`:
+5. `.omp_wip/<session>/00_cartography/socratic_dialogues.md`:
    - Clean human-readable ledger of questions, evaluated options, and human responses in plain language.
