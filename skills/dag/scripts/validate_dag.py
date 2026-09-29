@@ -224,13 +224,13 @@ def validate_formal_dag(
     manifest_file = find_manifest(manifest_path, workspace_root)
     if not manifest_file or not manifest_file.exists():
         print(f"[ERROR] DAG Manifest not found. Pass --manifest-path or ensure .omp_wip exists.", file=sys.stderr)
-        sys.exit(1)
+        return False
 
     try:
         data = json.loads(manifest_file.read_text(encoding="utf-8"))
     except Exception as e:
         print(f"[ERROR] JSON Parsing failure in {manifest_file}: {e}", file=sys.stderr)
-        sys.exit(1)
+        return False
 
     graph_version = data.get("graph_version", 1)
     nodes: List[Dict[str, Any]] = data.get("nodes", [])
@@ -248,7 +248,33 @@ def validate_formal_dag(
                 print("✓ Schema Validation: 100% compliant with dag_manifest_v2.schema.json.")
         except jsonschema.ValidationError as ve:
             print(f"[ERROR] Manifest Schema Violation: {ve.message} at path: {list(ve.path)}", file=sys.stderr)
-            sys.exit(1)
+            return False
+
+    # 1.5 Input Clarification & Dynamic Discovery Invalidation Gate Audits
+    input_clar = data.get("input_clarification", {})
+    if input_clar.get("status") in ["PENDING", "IN_PROGRESS"]:
+        print(f"[ERROR] PHASE 1.5 INPUT CLARIFICATION GATE PENDING: Input clarification status is '{input_clar.get('status')}'. Must be RESOLVED or CLEAN_PASS before DAG execution.", file=sys.stderr)
+        return False
+
+    # Check on-disk dialogues file if present
+    sess_dir = manifest_file.parent.parent
+    dialogues_file = sess_dir / "00_cartography" / "socratic_dialogues.json"
+    if dialogues_file.exists():
+        try:
+            d_data = json.loads(dialogues_file.read_text(encoding="utf-8"))
+            pending_dialogues = sum(1 for d in d_data.get("dialogues", []) if d.get("status") != "RESOLVED")
+            if pending_dialogues > 0:
+                print(f"[ERROR] PHASE 1.5 INPUT CLARIFICATION GATE PENDING: {pending_dialogues} unclarified Socratic dialogue question(s) must be resolved via human gate before DAG execution.", file=sys.stderr)
+                return False
+        except Exception:
+            pass
+
+    # Dynamic Discovery Assumption Invalidation Human Gate Audit
+    invals = data.get("invalidated_assumptions", [])
+    for inv in invals:
+        if inv.get("status") == "ACTIVE_BLOCKER" or inv.get("human_gate_status") == "PENDING_HUMAN_DIALOGUE":
+            print(f"[ERROR] ASSUMPTION INVALIDATION HUMAN GATE VETO: Invalidation '{inv.get('invalidation_id')}' on unit '{inv.get('unit_id')}' requires mandatory human resolution.", file=sys.stderr)
+            return False
 
     # 2. Structural Node Validation
     node_map: Dict[str, Dict[str, Any]] = {}
@@ -260,10 +286,10 @@ def validate_formal_dag(
         nid = str(node.get("id", "")).strip()
         if not nid:
             print("[ERROR] Node with missing or empty 'id'.", file=sys.stderr)
-            sys.exit(1)
+            return False
         if nid in node_map:
             print(f"[ERROR] Duplicate Node ID: {nid}", file=sys.stderr)
-            sys.exit(1)
+            return False
         node_map[nid] = node
         in_degree[nid] = 0
 
@@ -290,27 +316,27 @@ def validate_formal_dag(
 
         if not maker_id:
             print(f"[ERROR] Node {nid}: Missing assigned Maker persona.", file=sys.stderr)
-            sys.exit(1)
+            return False
 
         if len(checker_ids) != 3:
             print(f"[ERROR] Node {nid}: MUST have exactly 3 checker personas. Found: {len(checker_ids)}", file=sys.stderr)
-            sys.exit(1)
+            return False
 
         for cid in checker_ids:
             if cid.lower() == maker_id.lower():
                 print(f"[ERROR] MAKER != CHECKER VIOLATION in {nid}: Checker '{cid}' matches Maker '{maker_id}'!", file=sys.stderr)
-                sys.exit(1)
+                return False
 
         if len(set(c.lower() for c in checker_ids)) != 3:
             print(f"[ERROR] Node {nid}: Checker personas are not distinct: {checker_ids}", file=sys.stderr)
-            sys.exit(1)
+            return False
 
         # Frame Conditions Modifies Set presence check
         frame_spec = node.get("frame_conditions", {})
         modifies_set = frame_spec.get("modifies", node.get("expected_outputs", []))
         if not modifies_set:
             print(f"[ERROR] Frame Condition Violation in {nid}: Node must declare non-empty frame_conditions.modifies or expected_outputs.", file=sys.stderr)
-            sys.exit(1)
+            return False
 
         # 7-Tuple Persona Profile & Stance Orthogonality Verification
         sess_dir = manifest_file.parent.parent
@@ -320,13 +346,13 @@ def validate_formal_dag(
                 persona_validator.validate(maker_prof)
             except jsonschema.ValidationError as ve:
                 print(f"[ERROR] Maker Persona '{maker_id}' in {nid} violates persona_profile.schema.json: {ve.message}", file=sys.stderr)
-                sys.exit(1)
+                return False
 
         if maker_prof:
             maker_stance = maker_prof.get("epistemic_stance", {}).get("stance_type", "")
             if maker_stance and maker_stance != "constructive_synthesis":
                 print(f"[ERROR] Maker Persona '{maker_id}' in {nid} has invalid stance '{maker_stance}'. Expected 'constructive_synthesis'.", file=sys.stderr)
-                sys.exit(1)
+                return False
 
         checker_stances = []
         for cid_idx, c_elem in enumerate(checkers_val):
@@ -337,16 +363,16 @@ def validate_formal_dag(
                     persona_validator.validate(c_prof)
                 except jsonschema.ValidationError as ve:
                     print(f"[ERROR] Checker Persona '{cid_name}' in {nid} violates persona_profile.schema.json: {ve.message}", file=sys.stderr)
-                    sys.exit(1)
+                    return False
             if c_prof:
                 c_cat = c_prof.get("identity_and_mandate", {}).get("role_category", "")
                 if c_cat == "Maker":
                     print(f"[ERROR] Checker Persona '{cid_name}' in {nid} declares role_category='Maker'. Checkers must be adversarial auditors.", file=sys.stderr)
-                    sys.exit(1)
+                    return False
                 c_stance = c_prof.get("epistemic_stance", {}).get("stance_type", "")
                 if c_stance == "constructive_synthesis":
                     print(f"[ERROR] Checker Persona '{cid_name}' in {nid} has constructive stance. Checkers must be adversarial/skeptical.", file=sys.stderr)
-                    sys.exit(1)
+                    return False
                 if c_stance:
                     checker_stances.append(c_stance)
 
@@ -361,10 +387,10 @@ def validate_formal_dag(
             did = str(d).strip()
             if did == nid:
                 print(f"[ERROR] Self-dependency in node {nid}!", file=sys.stderr)
-                sys.exit(1)
+                return False
             if did not in node_map:
                 print(f"[ERROR] Node {nid} depends on non-existent node '{did}'", file=sys.stderr)
-                sys.exit(1)
+                return False
             if did not in clean_deps:
                 clean_deps.append(did)
 
@@ -387,7 +413,7 @@ def validate_formal_dag(
     if len(topo_order) != len(nodes):
         unvisited = [n for n, deg in in_degree.items() if deg > 0]
         print(f"[ERROR] CYCLE DETECTED IN DAG! Closed loop involving: {unvisited}", file=sys.stderr)
-        sys.exit(1)
+        return False
 
     # 5. Topological Depth & Critical Path Calculation
     node_depth: Dict[str, int] = {}
@@ -459,7 +485,7 @@ def validate_formal_dag(
         sess_dir = manifest_file.parent.parent
         disk_ok = audit_disk_contracts(sess_dir, nodes)
         if not disk_ok:
-            sys.exit(1)
+            return False
 
     if json_output:
         res = {
@@ -486,10 +512,12 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     args = parser.parse_args()
 
-    validate_formal_dag(
+    ok = validate_formal_dag(
         manifest_path=args.manifest_path,
         workspace_root=args.workspace_root,
         audit_disk=args.audit_disk,
         check_concurrency=not args.no_concurrency,
         json_output=args.json
     )
+    if not ok:
+        sys.exit(1)

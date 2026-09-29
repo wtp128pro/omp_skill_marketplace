@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SocraticDialogueManifest",
+  "description": "Formal Schema for Socratic Input Clarification and Dynamic Assumption Invalidation Dialogues",
+  "type": "object",
+  "required": ["session_id", "dialogue_phase", "dialogues"],
+  "properties": {
+    "session_id": {
+      "type": "string"
+    },
+    "dialogue_phase": {
+      "type": "string",
+      "enum": [
+        "phase_1_5_input_clarification",
+        "execution_assumption_invalidation",
+        "bounded_graph_addition_gate"
+      ]
+    },
+    "total_questions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resolved_questions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PENDING", "IN_PROGRESS", "RESOLVED", "CLEAN_PASS"]
+    },
+    "dialogues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "dialogue_id",
+          "layer",
+          "question_index",
+          "total_in_series",
+          "question",
+          "context_and_reality",
+          "options",
+          "status"
+        ],
+        "properties": {
+          "dialogue_id": {
+            "type": "string",
+            "pattern": "^SOCRATIC-[A-Z0-9_-]+$"
+          },
+          "unit_id": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string",
+            "enum": [
+              "Layer 1: Structural & Boundary Audit",
+              "Layer 2: Invariant & Failure-Semantics Audit",
+              "Layer 3: Socratic Intent & Trade-off Clarification",
+              "Execution Discovery: Assumption Invalidation"
+            ]
+          },
+          "question_index": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-based index enforcing strictly ONE question per interaction turn"
+          },
+          "total_in_series": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "question": {
+            "type": "string",
+            "minLength": 10,
+            "description": "Single targeted question in plain human language ending with a question mark"
+          },
+          "context_and_reality": {
+            "type": "string",
+            "minLength": 15,
+            "description": "Plain human language explanation of the observed reality and why this clarification is critical"
+          },
+          "invalidated_prior_assumption": {
+            "type": "string",
+            "description": "For execution-phase gates: the exact prior assumption that empirical discovery has broken"
+          },
+          "discovery_evidence": {
+            "type": "string",
+            "description": "For execution-phase gates: concrete error trace, test failure, or repository finding disproving the assumption"
+          },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "description": "Exhaustive evaluation of viable options with the best option first",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "label",
+                "is_recommended",
+                "plain_language_explanation",
+                "pros",
+                "cons",
+                "trade_off_analysis"
+              ],
+              "properties": {
+                "id": { "type": "string" },
+                "label": { "type": "string" },
+                "is_recommended": { "type": "boolean" },
+                "plain_language_explanation": { "type": "string" },
+                "pros": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                },
+                "cons": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                },
+                "trade_off_analysis": { "type": "string" }
+              }
+            }
+          },
+          "plain_language_verified": {
+            "type": "boolean",
+            "description": "Formally verified that technical terms are explained inline in parentheses or commas"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "ACTIVE", "RESOLVED"]
+          },
+          "human_response": {
+            "type": ["object", "null"],
+            "properties": {
+              "selected_option_id": { "type": "string" },
+              "selected_option_label": { "type": "string" },
+              "custom_input": { "type": ["string", "null"] },
+              "decision_rationale": { "type": "string" },
+              "answered_at": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

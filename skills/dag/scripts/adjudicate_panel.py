@@ -71,7 +71,7 @@ def validate_telemetry_attestation(raw_data: Optional[Dict[str, Any]]) -> List[D
     Prevents the 'Simulation Trap' where a Maker self-grades by generating mock verdicts.
     """
     defects = []
-    if not raw_data or not isinstance(raw_data, dict):
+    if raw_data is None or not isinstance(raw_data, dict):
         return defects
 
     telemetry = raw_data.get("telemetry")
@@ -247,9 +247,10 @@ def update_briefing_with_learnings(briefing_path: Path, learnings_records: List[
             content,
             flags=re.DOTALL
         )
+    elif "</system_contract>" in content:
+        content = content.replace("</system_contract>", constraint_block.strip() + "\n</system_contract>")
     else:
         content += "\n" + constraint_block
-
     briefing_path.write_text(content, encoding="utf-8")
 
 
@@ -304,7 +305,29 @@ def formal_adjudicate_unit(
         print(f"[ERROR] Neither panel_verdicts.json nor panel_verdicts.md found in {unit_dir}", file=sys.stderr)
         sys.exit(1)
 
-    # 1. Evaluate Votes & Severities
+    # 1. Enforce subagent execution telemetry attestation before computing votes
+    if (enforce_telemetry or (raw_verdicts_data and "telemetry" in raw_verdicts_data)) and raw_verdicts_data:
+        attestation_defects = validate_telemetry_attestation(raw_verdicts_data)
+        if attestation_defects:
+            if panelists:
+                panelists[-1].setdefault("defects", []).extend(attestation_defects)
+                panelists[-1]["vote"] = "REJECT"
+                panelists[-1]["highest_severity"] = "Sev-1"
+    elif enforce_telemetry and not raw_verdicts_data:
+        attestation_defects = [{
+            "defect_id": "ATTEST-001",
+            "severity": "Sev-1",
+            "summary": "CRITICAL ATTESTATION BREACH: Missing subagent execution telemetry.",
+            "counterexample": "No structured JSON telemetry available.",
+            "root_cause": "Verification panel lacks signed subagent execution telemetry.",
+            "negative_constraint": "All verification panels MUST be executed via dispatch_panel.py and record signed telemetry."
+        }]
+        if panelists:
+            panelists[-1].setdefault("defects", []).extend(attestation_defects)
+            panelists[-1]["vote"] = "REJECT"
+            panelists[-1]["highest_severity"] = "Sev-1"
+
+    # Evaluate Votes & Severities (evaluated after attestation checks)
     votes = [p.get("vote", "REJECT").upper() for p in panelists]
     severities = [standardize_severity(p.get("highest_severity", "None")) for p in panelists]
 
@@ -316,23 +339,35 @@ def formal_adjudicate_unit(
                 if isinstance(evidence, list) and len(evidence) == 0:
                     if not json_output:
                         print(f"\033[33m[WARN] Panelist {idx+1} approved without supplying concrete falsification evidence.\033[0m")
-    # Enforce subagent execution telemetry attestation
-    if enforce_telemetry and raw_verdicts_data:
-        attestation_defects = validate_telemetry_attestation(raw_verdicts_data)
-        if attestation_defects:
-            if panelists:
-                panelists[-1]["defects"].extend(attestation_defects)
-                panelists[-1]["vote"] = "REJECT"
-                panelists[-1]["highest_severity"] = "Sev-1"
-
     # 2. Defect Verification & Cryptographic Waiver Processing
     active_waivers = load_waivers(unit_dir, sess_dir, raw_verdicts_data)
     waived_defects: List[Dict[str, Any]] = []
     unwaived_defects: List[Dict[str, Any]] = []
 
+    # Check for active unresolved Assumption Invalidation Human Gate on this unit
+    if manifest_path.exists():
+        try:
+            m_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            invals = m_data.get("invalidated_assumptions", [])
+            for inv in invals:
+                if inv.get("unit_id") == clean_unit_id and inv.get("status") == "ACTIVE_BLOCKER":
+                    unwaived_defects.append({
+                        "defect_id": f"INVAL-GATE-{inv.get('invalidation_id')}",
+                        "severity": "Sev-1",
+                        "summary": f"ASSUMPTION INVALIDATION HUMAN GATE VETO: Prior assumption '{inv.get('assumption_summary')}' was invalidated during execution and is pending mandatory human resolution.",
+                        "counterexample": inv.get("discovery_evidence", "Empirical discovery broke prior assumption."),
+                        "root_cause": "Dynamic execution discovery contradicted baseline assumptions without human gate sign-off.",
+                        "negative_constraint": "DO NOT proceed with AWU adjudication until human resolves the assumption invalidation via Socratic dialogue.",
+                        "source_role": "AssumptionInvalidationGate"
+                    })
+        except Exception:
+            pass
+
     for p in panelists:
         p_role = p.get("panelist_role", "Adversarial Panelist")
-        for d in p.get("defects", []):
+        p_sev = standardize_severity(p.get("highest_severity", "None"))
+        p_defects = p.get("defects", [])
+        for d in p_defects:
             sev = standardize_severity(d.get("severity", "None"))
             if sev in ("Sev-1", "Sev-2"):
                 # Mandatory Counterexample Verification (Proof(d))
@@ -367,6 +402,33 @@ def formal_adjudicate_unit(
                     d_copy["source_role"] = p_role
                     unwaived_defects.append(d_copy)
 
+        # Synthesize defect if panelist recorded Sev-1 or Sev-2 in highest_severity but defects list omitted it
+        if p_sev in ("Sev-1", "Sev-2") and not any(standardize_severity(d.get("severity", "None")) == p_sev for d in p_defects):
+            synth_defect = {
+                "defect_id": f"DEF-{re.sub(r'[^a-zA-Z0-9]', '', p_role)[:16]}-001",
+                "severity": p_sev,
+                "summary": f"Veto condition detected by {p_role} ({p_sev})",
+                "counterexample": (p.get("falsification_evidence") or ["Adversarial falsification veto"])[0] if p.get("falsification_evidence") else "Failing invariant or boundary condition",
+                "root_cause": f"Panelist {p_role} recorded {p_sev} severity breach.",
+                "negative_constraint": f"DO NOT violate contracts verified by {p_role}.",
+                "source_role": p_role
+            }
+            is_waived = False
+            waiver_reason = ""
+            for w in active_waivers:
+                ok, reason = evaluate_waiver(w, synth_defect, clean_unit_id)
+                if ok:
+                    is_waived = True
+                    waiver_reason = reason
+                    break
+            if is_waived:
+                synth_defect["waived_by"] = waiver_reason
+                waived_defects.append(synth_defect)
+                if not json_output:
+                    print(f"\033[35m[WAIVER APPLIED] {p_sev} Defect '{synth_defect['summary']}' successfully waived: {waiver_reason}\033[0m")
+            else:
+                unwaived_defects.append(synth_defect)
+
     # 3. Determine Highest Active Global Severity
     unwaived_severities = [standardize_severity(d.get("severity", "None")) for d in unwaived_defects]
     if "Sev-1" in unwaived_severities:
@@ -379,13 +441,22 @@ def formal_adjudicate_unit(
         global_severity = "None"
 
     approve_count = sum(1 for v in votes if v == "APPROVE")
-    reject_count = sum(1 for v in votes if v != "APPROVE")
+    reject_count = sum(1 for v in votes if v == "REJECT")
+    pending_count = sum(1 for v in votes if v == "PENDING")
 
     # 4. Mathematical Severity-Over-Majority Adjudication
     if global_severity in ("Sev-1", "Sev-2"):
         final_verdict = "REJECT_VETO"
         severity_override = (approve_count >= 2)
         explanation = f"IMMEDIATE VETO: Active {global_severity} defect detected without valid waiver. Problem gravity overrides majority."
+    elif pending_count == len(panelists):
+        final_verdict = "PENDING"
+        severity_override = False
+        explanation = f"PANEL VERIFICATION PENDING: All {len(panelists)} adversarial panelists have not yet submitted verdicts."
+    elif pending_count > 0 and approve_count < 2 and reject_count < 2:
+        final_verdict = "PENDING"
+        severity_override = False
+        explanation = f"PANEL VERIFICATION IN PROGRESS: {pending_count} of {len(panelists)} panelist verdicts still pending."
     elif reject_count >= 2:
         final_verdict = "REJECT_MAJORITY"
         severity_override = False
@@ -406,7 +477,6 @@ def formal_adjudicate_unit(
         final_verdict = "REJECT"
         severity_override = False
         explanation = "REJECTED: Contractual passing criteria not met."
-
     # 5. Extract Structured Learnings on Rejection (Unwaived Defects Only)
     new_learnings = []
     if final_verdict in ("REJECT_VETO", "REJECT_MAJORITY", "REJECT"):
@@ -444,13 +514,18 @@ def formal_adjudicate_unit(
                         "severity_override": severity_override,
                         "adjudicated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
                     }
+                    active_blocker = any(
+                        inv.get("unit_id") == clean_unit_id and inv.get("status") == "ACTIVE_BLOCKER"
+                        for inv in mdata.get("invalidated_assumptions", [])
+                    )
                     if "PASS" in final_verdict:
                         node["status"] = "COMPLETED"
+                    elif active_blocker:
+                        node["status"] = "BLOCKED"
                     elif node.get("iteration_count", 0) >= node.get("max_iterations", 3):
                         node["status"] = "ESCALATED"
                     else:
                         node["status"] = "PENDING"
-                    break
             manifest_path.write_text(json.dumps(mdata, indent=2), encoding="utf-8")
         except Exception as me:
             print(f"[WARN] Could not update dag_manifest.json automatically: {me}", file=sys.stderr)
@@ -483,7 +558,9 @@ def formal_adjudicate_unit(
         "severities": severities,
         "explanation": explanation,
         "new_learnings_count": len(new_learnings),
-        "waived_defects_count": len(waived_defects)
+        "waived_defects_count": len(waived_defects),
+        "unwaived_defects": unwaived_defects,
+        "waived_defects": waived_defects
     }
 
     if json_output:
@@ -492,17 +569,27 @@ def formal_adjudicate_unit(
     return res
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Formal Adjudication Engine for 3-Agent Panels.")
     parser.add_argument("--unit-id", required=True, help="Unit ID (e.g., AWU-001)")
     parser.add_argument("--session-path", help="Path to session directory")
     parser.add_argument("--workspace-root", help="Root directory containing .omp_wip")
+    parser.add_argument("--enforce-telemetry", action="store_true", help="Strictly require subagent telemetry attestation")
+    parser.add_argument("--no-evidence-check", action="store_true", help="Skip anti-rubber-stamping evidence verification")
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     args = parser.parse_args()
 
-    formal_adjudicate_unit(
+    res = formal_adjudicate_unit(
         unit_id=args.unit_id,
         session_path=args.session_path,
         workspace_root=args.workspace_root,
-        json_output=args.json
+        json_output=args.json,
+        enforce_telemetry=args.enforce_telemetry,
+        enforce_evidence_check=not args.no_evidence_check
     )
+    if "PASS" not in res.get("final_verdict", ""):
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

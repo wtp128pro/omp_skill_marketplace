@@ -25,12 +25,27 @@ def match_any_pattern(path_str: str, patterns: List[str]) -> bool:
         clean_pat = pat.strip().replace("\\", "/").lstrip("./")
         if clean_p == clean_pat:
             return True
-        if fnmatch.fnmatch(clean_p, clean_pat):
+        if clean_pat.endswith("/") and clean_p.startswith(clean_pat):
             return True
-        if clean_pat.endswith("/**") and (clean_p.startswith(clean_pat[:-3]) or fnmatch.fnmatch(clean_p, clean_pat)):
+        if clean_pat.endswith("/*") and (clean_p.startswith(clean_pat[:-1]) or clean_p == clean_pat[:-2]):
+            return True
+        if clean_pat.endswith("/**") and (clean_p.startswith(clean_pat[:-2]) or clean_p == clean_pat[:-3]):
+            return True
+        if fnmatch.fnmatch(clean_p, clean_pat):
             return True
     return False
 
+
+def find_repo_root(start_path: Path) -> Path:
+    """Locates repo/workspace root by traversing upward for .git or .omp_wip."""
+    curr = start_path.resolve()
+    for parent in [curr] + list(curr.parents):
+        if (parent / ".git").exists() or (parent / ".omp_wip").exists():
+            return parent
+    if ".omp_wip" in curr.parts:
+        idx = curr.parts.index(".omp_wip")
+        return Path(*curr.parts[:idx])
+    return curr.parent.parent if len(curr.parents) >= 2 else curr
 
 def get_git_modified_files(repo_root: Path) -> List[str]:
     """Gets list of modified, added, or untracked files from git status."""
@@ -50,6 +65,8 @@ def get_git_modified_files(repo_root: Path) -> List[str]:
             # Format: 'XY path' or 'XY path -> new_path'
             parts = line[2:].strip().split(" -> ")
             target = parts[-1].strip().strip('"')
+            if target == ".omp_wip" or target.startswith(".omp_wip/") or target.startswith(".git/"):
+                continue
             files.append(target)
         return files
     except Exception:
@@ -84,7 +101,7 @@ def audit_unit_frame_conditions(
 
     # If modified_files not passed, detect from git or manifest outputs
     if modified_files is None or len(modified_files) == 0:
-        repo_dir = Path(workspace_root).resolve() if workspace_root else man_file.parent.parent
+        repo_dir = Path(workspace_root).resolve() if workspace_root else find_repo_root(man_file)
         git_files = get_git_modified_files(repo_dir)
         modified_files = git_files if git_files else target_node.get("expected_outputs", [])
 
@@ -159,10 +176,12 @@ if __name__ == "__main__":
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     args = parser.parse_args()
 
-    audit_unit_frame_conditions(
+    res = audit_unit_frame_conditions(
         unit_id=args.unit_id,
         manifest_path=args.manifest_path,
         modified_files=args.files,
         workspace_root=args.workspace_root,
         json_output=args.json
     )
+    if not res.get("is_compliant"):
+        sys.exit(1)

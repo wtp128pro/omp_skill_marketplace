@@ -121,6 +121,37 @@ Real-world execution frequently reveals unknown unknowns (e.g., during AWU-002, 
 
 ---
 
+## 5.5 Execution-Phase Dynamic Discovery & Assumption Invalidation Human Gate
+
+While BGA addresses *missing tasks*, execution often uncovers empirical facts that directly contradict or invalidate *prior baseline assumptions* (e.g., an assumed database trigger does not exist, an upstream API response structure differs from documentation, or an assumed concurrency model causes deadlocks).
+
+### Non-Negotiable Human Gate Invariant
+Under the Zero-Hallucination Axiom, no autonomous agent is permitted to guess a replacement assumption or unilaterally synthesize speculative workarounds.
+
+### The 4-Step Invalidation Protocol:
+1. **Immediate Execution Freeze (`status: "BLOCKED"`)**:
+   The active AWU is immediately placed into `BLOCKED` status in `dag_manifest.json`. Downstream tasks cannot execute.
+2. **Mandatory Human Gate Registration**:
+   The orchestrator registers the invalidation:
+   ```bash
+   fdag invalidate-assumption --unit-id "<AWU-ID>" --assumption "<Prior Assumption>" --evidence "<Observed Failure/Trace>"
+   ```
+3. **Formal Socratic Dialogue Inquiry**:
+   A Socratic dialogue is queued adhering to the single-question discipline:
+   - **Plain Human Language**: All technical terms explained inline in parentheses.
+   - **Single Question**: Exactly one targeted question regarding how to re-align the architecture or contract.
+   - **Evaluated Options**: Exhaustive evaluation of trade-offs, pros, and cons.
+   - **Recommendation First**: Optimal path marked `(Recommended)` at Index 0.
+4. **Human Decision Sign-off & Unblocking**:
+   The human operator selects the resolution path:
+   ```bash
+   fdag resolve-invalidation --invalidation-id "INVAL-001" --option-id "OPT-1" --summary "<Human Decision Rationale>"
+   ```
+   This updates `dag_manifest.json` (`human_gate_status: "RESOLVED_BY_HUMAN"`), appends a permanent learning record to `learnings.jsonl`, annotates `briefing.md`, and restores the unit to `IN_PROGRESS`.
+
+*(Note: If any unadjudicated assumption invalidation remains active, both `fdag validate` and `fdag adjudicate` trigger an unappealable Sev-1 Human Gate Veto).*
+---
+
 ## 6. On-Disk Auditability & State Validation
 
 Before marking any phase or the entire session complete, the orchestrator executes the on-disk auditor:

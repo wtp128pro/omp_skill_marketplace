@@ -130,6 +130,15 @@ flowchart TD
    - Automatically writes structured counterexamples and negative constraints to `learnings.jsonl`.
    - Automatically updates `briefing.json` and increments iteration counters.
 
+
+### Layer 6: Socratic Input Clarification & Assumption Invalidation Engine (`socratic_dialogue.py`)
+1. **Phase 1.5 Layered Input Clarification Gate (`fdag clarify`)**:
+   - Placed strictly after Cartography (Phase 1) and before DAG Decomposition (Phase 2).
+   - Audits inputs across 3 layers: Structural Boundaries, Invariant Alignment, and Socratic Dialogues.
+   - Formally enforces single-question discipline, evaluated options, and `(Recommended)` choice first in plain human language.
+2. **Execution-Phase Assumption Invalidation Human Gate (`fdag invalidate-assumption`)**:
+   - Whenever empirical discovery during execution breaks an earlier assumption, unit enters `BLOCKED` status.
+   - Human resolution is mandatory before execution or adjudication can proceed.
 ---
 
 ## 4. Modernized AWU Execution Lifecycle (The F-DAG Protocol)

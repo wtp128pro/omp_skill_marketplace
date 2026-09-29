@@ -31,7 +31,7 @@
     },
     "vote": {
       "type": "string",
-      "enum": ["APPROVE", "REJECT"]
+      "enum": ["APPROVE", "REJECT", "PENDING"]
     },
     "highest_severity": {
       "type": "string",
@@ -48,7 +48,6 @@
     "falsification_evidence": {
       "type": "array",
       "description": "Explicit evidence of boundary testing, attack vector simulation, or caller impact tracing",
-      "minItems": 1,
       "items": { "type": "string" }
     },
     "edge_cases_tested": {

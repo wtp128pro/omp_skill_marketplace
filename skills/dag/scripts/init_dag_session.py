@@ -73,17 +73,25 @@ def init_dag_session(task_moniker: str = "dag-task", workspace_root: str = None,
         (session_path / sub).mkdir(parents=True, exist_ok=True)
 
     # 1. Base DAG Manifest Skeleton
-    manifest_path = session_path / "01_dag" / "dag_manifest.json"
+    dag_dir = session_path / "01_dag"
+    cartography_dir = session_path / "00_cartography"
+    manifest_path = dag_dir / "dag_manifest.json"
     manifest_skeleton = {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "session_id": session_dirname,
         "task_moniker": safe_moniker,
-        "graph_version": 1,
+        "graph_version": 2,
         "created_at": iso_now,
+        "input_clarification": {
+            "status": "PENDING",
+            "total_questions": 0,
+            "resolved_questions": 0,
+            "dialogues_file": "00_cartography/socratic_dialogues.json"
+        },
+        "invalidated_assumptions": [],
         "nodes": [],
     }
     manifest_path.write_text(json.dumps(manifest_skeleton, indent=2), encoding="utf-8")
-
     # 2. DAG Graph Mermaid Skeleton
     dag_graph_path = session_path / "01_dag" / "dag_graph.md"
     dag_graph_skeleton = f"""# DAG Execution Graph: {safe_moniker}
@@ -134,6 +142,19 @@ flowchart TD
 *(Document any missing requirements; prohibit arbitrary assumptions)*
 """
     iga_path.write_text(iga_skeleton, encoding="utf-8")
+
+    # 4.5 Socratic Dialogues Ledger Skeleton (Phase 1.5)
+    socratic_path = cartography_dir / "socratic_dialogues.json"
+    socratic_skeleton = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "session_id": session_dirname,
+        "dialogue_phase": "phase_1_5_input_clarification",
+        "total_questions": 0,
+        "resolved_questions": 0,
+        "status": "PENDING",
+        "dialogues": []
+    }
+    socratic_path.write_text(json.dumps(socratic_skeleton, indent=2), encoding="utf-8")
 
     # 5. Final Side-Effect Regression Audit Skeleton
     regression_path = session_path / "99_final_review" / "adversarial_regression_audit.md"
@@ -214,11 +235,12 @@ flowchart TD
         "ManifestPath": str(manifest_path),
         "CartographyPath": str(cartography_path),
         "IgaPath": str(iga_path),
+        "SocraticDialoguesPath": str(socratic_path),
         "DagGraphPath": str(dag_graph_path),
+        "SubagentRoutingMatrixPath": str(dag_dir / "subagent_routing_matrix.json"),
         "RegressionAuditPath": str(regression_path),
-        "SessionDebriefPath": str(session_debrief_path),
+        "SessionDebriefPath": str(session_debrief_path)
     }
-
     if json_output:
         print(json.dumps(result, indent=2))
     else:

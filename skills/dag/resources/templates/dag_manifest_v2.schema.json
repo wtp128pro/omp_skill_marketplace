@@ -36,6 +36,45 @@
         "bernstein_concurrency_verified": { "type": "boolean" }
       }
     },
+    "input_clarification": {
+      "type": "object",
+      "description": "Phase 1.5 Layered Socratic Input Clarification Gate Tracking",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "IN_PROGRESS", "RESOLVED", "CLEAN_PASS"]
+        },
+        "total_questions": { "type": "integer", "minimum": 0 },
+        "resolved_questions": { "type": "integer", "minimum": 0 },
+        "completed_at": { "type": ["string", "null"] },
+        "dialogues_file": { "type": "string" }
+      }
+    },
+    "invalidated_assumptions": {
+      "type": "array",
+      "description": "Execution-Phase Dynamic Discovery Invalidation Registry with Mandatory Human Gate",
+      "items": {
+        "type": "object",
+        "required": ["invalidation_id", "unit_id", "assumption_summary", "status", "human_gate_status"],
+        "properties": {
+          "invalidation_id": { "type": "string" },
+          "unit_id": { "type": "string" },
+          "assumption_summary": { "type": "string" },
+          "discovery_evidence": { "type": ["string", "null"] },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE_BLOCKER", "RESOLVED", "WAIVED"]
+          },
+          "human_gate_status": {
+            "type": "string",
+            "enum": ["PENDING_HUMAN_DIALOGUE", "RESOLVED_BY_HUMAN"]
+          },
+          "dialogue_id": { "type": ["string", "null"] },
+          "resolution_summary": { "type": ["string", "null"] },
+          "resolved_at": { "type": ["string", "null"] }
+        }
+      }
+    },
     "nodes": {
       "type": "array",
       "items": {
@@ -238,7 +277,7 @@
             "properties": {
               "verdict": { 
                 "type": "string",
-                "enum": ["PASS", "PASS_WITH_CAVEAT", "REJECT_VETO", "REJECT_MAJORITY", "PENDING"]
+                "enum": ["PASS", "PASS_WAIVED", "PASS_WITH_CAVEAT", "REJECT", "REJECT_VETO", "REJECT_MAJORITY", "PENDING"]
               },
               "highest_severity": { 
                 "type": "string",

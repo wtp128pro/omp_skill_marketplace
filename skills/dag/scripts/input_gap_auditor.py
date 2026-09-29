@@ -69,7 +69,7 @@ CLASS_2_PROBES = [
     {
         "id": "GAP-C2-01",
         "name": "Strict Schema & Error Type Definitions",
-        "keywords": ["api", "endpoint", "return", "status", "json", "response"],
+        "keywords": ["api", "endpoint", "fastapi", "http", "route", "controller", "rest", "handler"],
         "required_invariants": ["error response", "error schema", "status code", "exception", "failure schema"],
         "severity": "Sev-2",
         "description": "Endpoint or public function specifies happy-path return without complete failure/error payload schemas."

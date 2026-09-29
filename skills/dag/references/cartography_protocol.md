@@ -80,6 +80,50 @@ fdag iga-check --text "<user specification>"
 
 ---
 
+## 2.5 Phase 1.5: Layered Socratic Input Clarification Gate
+
+Immediately following Cartography (Phase 1) and strictly before DAG Decomposition (Phase 2), the system executes the **Layered Socratic Input Clarification Gate** (`fdag clarify`).
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│             3-LAYER INPUT CLARIFICATION & ENHANCEMENT ARCHITECTURE     │
+├────────────────────────────────────────────────────────────────────────┤
+│ LAYER 1: Structural & Boundary Audit                                   │
+│   • Filesystem existence, API parameter bounds, data types, nullability│
+│   • Identifies missing arguments, encodings, and interface gaps        │
+├────────────────────────────────────────────────────────────────────────┤
+│ LAYER 2: Invariant & Failure-Semantics Alignment                       │
+│   • Concurrency isolation, row-level locks, distributed idempotency    │
+│   • Outbound network timeouts, retry storm limits, partial failure paths│
+├────────────────────────────────────────────────────────────────────────┤
+│ LAYER 3: Socratic Intent & Trade-off Clarification (Human Gate)        │
+│   • Strictly ONE question per turn in plain human language             │
+│   • Exhaustive evaluation of options with (Recommended) choice first   │
+│   • Zero unverified assumptions permitted to pass to Phase 2           │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Layer 1: Structural & Boundary Audit
+Cross-references user requests against static topology and interface contracts discovered in Cartography:
+- Are all declared input file paths, environment variables, and CLI parameters present on disk?
+- Are numeric inputs constrained by explicit upper and lower bounds ($x > 0, x \le \text{MAX\_BOUND}$)?
+- Are string and collection inputs governed by non-empty invariants?
+
+### Layer 2: Invariant & Failure-Semantics Alignment
+Cross-references requests against the codebase invariant catalog and failure models:
+- Does a state-mutating operation declare transaction isolation (`SERIALIZABLE` or `READ COMMITTED`)?
+- Does an outbound HTTP call declare a hard timeout SLA (e.g. 5000ms) and retry backoff?
+- Does a distributed handler mandate an idempotency token with unique constraint deduplication?
+
+### Layer 3: Socratic Intent & Trade-off Clarification
+Any unresolved gap from Layer 1 or Layer 2 is converted into a formal Socratic dialogue queue:
+- Enforces single-question discipline (strictly 1 question per turn).
+- Evaluates pros, cons, and trade-off analysis for each alternative.
+- Formats the optimal choice first, marked `(Recommended)`.
+- Demystifies all technical terminology inline.
+- Blocks Phase 2 until all inquiries are marked `RESOLVED`.
+---
+
 ## 3. Ground Truth: Anti-Hallucination, Anti-Goldplating & Anti-Drift Guardrails
 
 To ensure uncompromising engineering integrity, the agent must adhere to three negative axioms:
@@ -124,3 +168,7 @@ All cartography outputs must be written to disk in the session directory:
    - Gap audit table
    - Reputable source citations
    - Resolution status for every ambiguity (Resolved via Spec / Non-Blocking Default / Blocking Escalation)
+3. `.omp_wip/<session>/00_cartography/socratic_dialogues.json`:
+   - Machine-verifiable record of all Socratic clarification inquiries, option evaluations, and human decisions.
+4. `.omp_wip/<session>/00_cartography/socratic_dialogues.md`:
+   - Clean human-readable ledger of questions, evaluated options, and human responses in plain language.

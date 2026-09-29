@@ -174,7 +174,7 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
           "model_tier": "google-antigravity/gemini-3.1-pro:high",
           "vote": "PENDING",
           "highest_severity": "None",
-          "falsification_evidence": [],
+          "falsification_evidence": ["Initial scaffolding pending adversarial panel verification."],
           "defects": []
         },
         {
@@ -183,7 +183,7 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
           "model_tier": "google-antigravity/gemini-3.1-pro:high",
           "vote": "PENDING",
           "highest_severity": "None",
-          "falsification_evidence": [],
+          "falsification_evidence": ["Initial scaffolding pending adversarial panel verification."],
           "defects": []
         },
         {
@@ -192,7 +192,7 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
           "model_tier": "anthropic/claude-opus-5-5:xhigh",
           "vote": "PENDING",
           "highest_severity": "None",
-          "falsification_evidence": [],
+          "falsification_evidence": ["Initial scaffolding pending adversarial panel verification."],
           "defects": []
         }
       ]
@@ -218,6 +218,33 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
 """
     (unit_dir / "debriefing.md").write_text(debriefing_template, encoding="utf-8")
 
+
+    # Register into manifest if not already present
+    if manifest_data is not None and not manifest_node:
+        new_node = {
+            "id": clean_unit_id,
+            "slug": slug,
+            "title": title,
+            "tier": tier,
+            "status": "PENDING",
+            "assigned_maker_persona": maker_persona,
+            "checker_personas": [
+                "CorrectnessContractFalsifier",
+                "SecurityInvariantAuditor",
+                "SystemicBlastRadiusSentinel"
+            ],
+            "dependencies": dependencies,
+            "inputs": inputs,
+            "expected_outputs": expected_outputs,
+            "frame_conditions": {
+                "modifies": modifies or expected_outputs or ["src/**"],
+                "immutable": []
+            },
+            "iteration_count": 0,
+            "max_iterations": 3
+        }
+        manifest_data.setdefault("nodes", []).append(new_node)
+        manifest_path.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
     if not json_output:
         print(f"\033[36m==> Scaffolded AWU {clean_unit_id} in: {unit_dir}\033[0m")
         print(f"  ✓ briefing.json & briefing.md created (with Two-Plane Isolation)")

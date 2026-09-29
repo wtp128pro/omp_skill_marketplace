@@ -10,45 +10,31 @@ Commands:
   fdag frame-check - Audit git diff / file writes against declared modifies frame sets
   fdag adjudicate  - Adjudicate panel verdicts with Severity-Over-Majority and waivers
   fdag scorecard   - Audit 5-Point Enterprise Invariant Readiness Scorecard
-  fdag iga-check   - Audit specifications for latent Input Gaps & Plausibility Trap
-  fdag test        - Run the exhaustive end-to-end regression test suite
+  fdag iga-check             - Audit specifications for latent Input Gaps & Plausibility Trap
+  fdag clarify               - Conduct Phase 1.5 Layered Socratic Input Clarification Gate
+  fdag invalidate-assumption - Register dynamic discovery assumption invalidation (Human Gate)
+  fdag resolve-invalidation  - Resolve assumption invalidation Human Gate and unblock unit
+  fdag test                  - Run the exhaustive end-to-end regression test suite
 """
 
 import argparse
+import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
-
 
 ENGINE_DIR = Path(__file__).parent.resolve()
 
 
 def cmd_init(args):
-    from scaffold_dag_unit import find_latest_session
-    import datetime, json
-
-    moniker = args.task_moniker or "fdag-session"
-    ws = Path(args.workspace_root).resolve() if args.workspace_root else Path.cwd().resolve()
-    wip_dir = ws / ".omp_wip"
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    sess_name = f"{now_str}_{moniker}"
-    sess_dir = wip_dir / sess_name
-
-    for sub in ["00_cartography", "01_dag", "01_dag/bga_proposals", "units", "99_final_review"]:
-        (sess_dir / sub).mkdir(parents=True, exist_ok=True)
-
-    manifest_v2 = {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "session_id": sess_name,
-        "task_moniker": moniker,
-        "graph_version": 2,
-        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "nodes": []
-    }
-    (sess_dir / "01_dag" / "dag_manifest.json").write_text(json.dumps(manifest_v2, indent=2), encoding="utf-8")
-    print(f"\033[36m==> F-DAG Session Initialized:\033[0m {sess_dir}")
-
+    from init_dag_session import init_dag_session
+    init_dag_session(
+        task_moniker=args.task_moniker or "fdag-session",
+        workspace_root=args.workspace_root or None,
+        json_output=getattr(args, "json", False)
+    )
 
 def cmd_validate(args):
     from validate_dag import validate_formal_dag
@@ -83,24 +69,28 @@ def cmd_falsify(args):
 
 def cmd_frame_check(args):
     from frame_condition_auditor import audit_unit_frame_conditions
-    audit_unit_frame_conditions(
+    res = audit_unit_frame_conditions(
         unit_id=args.unit_id,
         manifest_path=args.manifest_path,
         modified_files=args.files,
         workspace_root=args.workspace_root,
         json_output=args.json
     )
+    if not res.get("is_compliant"):
+        sys.exit(1)
 
 
 def cmd_adjudicate(args):
     from adjudicate_panel import formal_adjudicate_unit
-    formal_adjudicate_unit(
+    res = formal_adjudicate_unit(
         unit_id=args.unit_id,
         session_path=args.session_path,
         workspace_root=args.workspace_root,
-        json_output=args.json
+        json_output=args.json,
+        enforce_telemetry=getattr(args, "enforce_telemetry", False)
     )
-
+    if "PASS" not in res.get("final_verdict", ""):
+        sys.exit(1)
 
 def cmd_scorecard(args):
     from audit_readiness_scorecard import audit_unit_readiness, audit_readiness_criteria
@@ -109,6 +99,9 @@ def cmd_scorecard(args):
         res = audit_unit_readiness(args.unit_id, args.session_path, args.workspace_root)
     elif args.prompt_file:
         p = Path(args.prompt_file).resolve()
+        if not p.exists():
+            print(f"[ERROR] Prompt file not found: {p}", file=sys.stderr)
+            sys.exit(1)
         res = audit_readiness_criteria(prompt_text=p.read_text(encoding="utf-8"), adjudication_active=True)
     else:
         from dag_utils import find_latest_session, find_resource_file
@@ -140,6 +133,9 @@ def cmd_iga_check(args):
     import json
     if args.spec_file:
         p = Path(args.spec_file).resolve()
+        if not p.exists():
+            print(f"[ERROR] Specification file not found: {p}", file=sys.stderr)
+            sys.exit(1)
         res = audit_specification_text(p.read_text(encoding="utf-8"))
     elif args.text:
         res = audit_specification_text(args.text)
@@ -191,6 +187,152 @@ def cmd_panel(args):
     res = subprocess.run(cmd)
     sys.exit(res.returncode)
 
+def cmd_clarify(args):
+    from socratic_dialogue import (
+        audit_layered_input_clarification,
+        step_socratic_dialogue,
+        resolve_socratic_dialogue,
+        format_socratic_for_ask,
+    )
+    import json
+    sess_dir = Path(args.session_path).resolve() if args.session_path else None
+
+    if args.step:
+        res = step_socratic_dialogue(session_dir=sess_dir, workspace_root=args.workspace_root)
+        if not res:
+            if args.json:
+                print(json.dumps({"has_pending": False, "status": "RESOLVED"}))
+            else:
+                print("\033[32m✓ All Socratic dialogue inquiries resolved! Gate passed.\033[0m")
+            return
+        if getattr(args, "ask_format", False):
+            ask_payload = format_socratic_for_ask(res)
+            print(json.dumps({"questions": [ask_payload]}, indent=2))
+            return
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"\033[36m==> Socratic Dialogue {res.get('dialogue_id')} (Question {res.get('question_index')} of {res.get('total_in_series')})\033[0m")
+            print(f"\033[33mContext & Observable Reality:\033[0m\n{res.get('context_and_reality')}\n")
+            print(f"\033[1mTarget Question:\033[0m {res.get('question')}\n")
+            print("\033[33mEvaluated Options:\033[0m")
+            for opt in res.get("options", []):
+                rec = " \033[32m(Recommended)\033[0m" if opt.get("is_recommended") else ""
+                clean_lbl = re.sub(r"^\(Recommended\)\s*", "", opt.get("label", ""))
+                print(f"  • [{opt.get('id')}]{rec} {clean_lbl}")
+                print(f"    Explanation: {opt.get('plain_language_explanation')}")
+                print(f"    Trade-off:   {opt.get('trade_off_analysis')}\n")
+        return
+
+    if args.resolve:
+        if not args.option:
+            print("[ERROR] --option <option_id> is required with --resolve", file=sys.stderr)
+            sys.exit(1)
+        res = resolve_socratic_dialogue(
+            dialogue_id=args.resolve,
+            selected_option_id=args.option,
+            custom_input=args.custom,
+            session_dir=sess_dir,
+            workspace_root=args.workspace_root
+        )
+        if args.json:
+            print(json.dumps(res, indent=2))
+        else:
+            if res.get("success"):
+                print(f"\033[32m✓ Socratic dialogue {args.resolve} resolved with option {args.option}.\033[0m")
+                if res.get("is_all_resolved"):
+                    print("\033[32m✓ All input clarification questions resolved! Gate passed.\033[0m")
+                else:
+                    print(f"Next active question: {res.get('next_dialogue_id')}")
+            else:
+                print(f"\033[31m[ERROR] Failed to resolve dialogue: {res.get('error')}\033[0m", file=sys.stderr)
+                sys.exit(1)
+        return
+
+    # Default: run audit
+    spec_text = None
+    if args.spec_file:
+        sp = Path(args.spec_file).resolve()
+        if not sp.exists():
+            print(f"[ERROR] Specification file not found: {sp}", file=sys.stderr)
+            sys.exit(1)
+        spec_text = sp.read_text(encoding="utf-8")
+    res = audit_layered_input_clarification(session_dir=sess_dir, workspace_root=args.workspace_root, spec_text=spec_text)
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        status_color = "\033[31m" if res.get("is_blocking") else "\033[32m"
+        print(f"\033[36m==> Phase 1.5 Layered Socratic Input Clarification Gate\033[0m")
+        print(f"Status:             {status_color}{res.get('status')}\033[0m")
+        print(f"Total Questions:    {res.get('total_questions', 0)}")
+        print(f"Pending Questions:  {res.get('pending_questions', 0)}")
+        print(f"Explanation:        {res.get('explanation')}")
+        if res.get("is_blocking"):
+            next_q = step_socratic_dialogue(session_dir=sess_dir, workspace_root=args.workspace_root)
+            if next_q:
+                print("\n" + "=" * 68)
+                print(f"\033[36m==> Active Socratic Inquiry: {next_q.get('dialogue_id')} (Question {next_q.get('question_index')} of {next_q.get('total_in_series')})\033[0m")
+                print(f"\033[33mContext & Observable Reality:\033[0m\n{next_q.get('context_and_reality')}\n")
+                print(f"\033[1mTarget Question:\033[0m {next_q.get('question')}\n")
+                print("\033[33mEvaluated Options:\033[0m")
+                for opt in next_q.get("options", []):
+                    rec = " \033[32m(Recommended)\033[0m" if opt.get("is_recommended") else ""
+                    clean_lbl = re.sub(r"^\(Recommended\)\s*", "", opt.get("label", ""))
+                    print(f"  • [{opt.get('id')}]{rec} {clean_lbl}")
+                    print(f"    Explanation: {opt.get('plain_language_explanation')}")
+                    print(f"    Trade-off:   {opt.get('trade_off_analysis')}\n")
+                print(f"To resolve, run:\n  fdag clarify --resolve {next_q.get('dialogue_id')} --option <OPTION_ID>")
+                print("=" * 68 + "\n")
+            sys.exit(1)
+
+
+def cmd_invalidate_assumption(args):
+    from socratic_dialogue import register_assumption_invalidation
+    import json
+    sess_dir = Path(args.session_path).resolve() if args.session_path else None
+    res = register_assumption_invalidation(
+        unit_id=args.unit_id,
+        assumption_summary=args.assumption,
+        discovery_evidence=args.evidence,
+        session_dir=sess_dir,
+        workspace_root=args.workspace_root
+    )
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        if res.get("success"):
+            print(f"\033[31m==> MANDATORY HUMAN GATE TRIGGERED: {res.get('invalidation_id')}\033[0m")
+            print(f"Unit {args.unit_id} placed in BLOCKED status.")
+            print(f"Invalidated Assumption: {args.assumption}")
+            print(f"Empirical Discovery:    {args.evidence}")
+            print(f"\033[33mSocratic dialogue queued. Human decision required before resuming execution.\033[0m")
+        else:
+            print(f"[ERROR] {res.get('error')}", file=sys.stderr)
+            sys.exit(1)
+
+
+def cmd_resolve_invalidation(args):
+    from socratic_dialogue import resolve_assumption_invalidation
+    import json
+    sess_dir = Path(args.session_path).resolve() if args.session_path else None
+    res = resolve_assumption_invalidation(
+        invalidation_id=args.invalidation_id,
+        selected_option_id=args.option_id,
+        resolution_summary=args.summary,
+        session_dir=sess_dir,
+        workspace_root=args.workspace_root
+    )
+    if args.json:
+        print(json.dumps(res, indent=2))
+    else:
+        if res.get("success"):
+            print(f"\033[32m✓ Invalidation gate {args.invalidation_id} resolved!\033[0m")
+            print(f"Unit {res.get('unit_id')} has been unblocked and restored to IN_PROGRESS.")
+            print(f"Resolution summary: {args.summary}")
+        else:
+            print(f"[ERROR] {res.get('error')}", file=sys.stderr)
+            sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="fdag",
@@ -202,8 +344,8 @@ def main():
     p_init = subparsers.add_parser("init", help="Initialize a new F-DAG session")
     p_init.add_argument("--task-moniker", required=True, help="Moniker for session")
     p_init.add_argument("--workspace-root", help="Root directory")
+    p_init.add_argument("--json", action="store_true", help="Emit JSON output")
     p_init.set_defaults(func=cmd_init)
-
     # validate
     p_val = subparsers.add_parser("validate", help="Validate DAG manifest, cycle, and Bernstein concurrency")
     p_val.add_argument("--manifest-path", help="Path to dag_manifest.json")
@@ -243,9 +385,9 @@ def main():
     p_adj.add_argument("--unit-id", required=True, help="Unit ID")
     p_adj.add_argument("--session-path", help="Session directory")
     p_adj.add_argument("--workspace-root", help="Workspace root")
+    p_adj.add_argument("--enforce-telemetry", action="store_true", help="Strictly require subagent telemetry attestation")
     p_adj.add_argument("--json", action="store_true", help="Emit JSON")
     p_adj.set_defaults(func=cmd_adjudicate)
-
     # panel
     p_pan = subparsers.add_parser("panel", help="Dispatch multi-model adversarial verification panel via subagents")
     p_pan.add_argument("--unit-id", required=True, help="Unit ID (e.g. AWU-001)")
@@ -271,6 +413,39 @@ def main():
     p_iga.add_argument("--workspace-root", help="Workspace root")
     p_iga.add_argument("--json", action="store_true", help="Emit JSON output")
     p_iga.set_defaults(func=cmd_iga_check)
+
+    # clarify
+    p_clar = subparsers.add_parser("clarify", help="Audit or conduct Phase 1.5 Socratic Input Clarification")
+    p_clar.add_argument("--spec-file", help="Path to specification file")
+    p_clar.add_argument("--session-path", help="Session directory")
+    p_clar.add_argument("--workspace-root", help="Workspace root")
+    p_clar.add_argument("--step", action="store_true", help="Display next pending Socratic dialogue inquiry")
+    p_clar.add_argument("--ask-format", action="store_true", help="Format output for direct OMP ask tool invocation")
+    p_clar.add_argument("--resolve", help="Dialogue ID to resolve (e.g. SOCRATIC-001)")
+    p_clar.add_argument("--option", help="Option ID selected by human (e.g. OPT-1)")
+    p_clar.add_argument("--custom", help="Custom user clarification or rationale")
+    p_clar.add_argument("--json", action="store_true", help="Emit JSON output")
+    p_clar.set_defaults(func=cmd_clarify)
+
+    # invalidate-assumption
+    p_inval = subparsers.add_parser("invalidate-assumption", help="Register dynamic discovery assumption invalidation (Human Gate)")
+    p_inval.add_argument("--unit-id", required=True, help="Unit ID (e.g. AWU-001)")
+    p_inval.add_argument("--assumption", required=True, help="Invalidated prior assumption")
+    p_inval.add_argument("--evidence", required=True, help="Empirical discovery evidence or error trace")
+    p_inval.add_argument("--session-path", help="Session directory")
+    p_inval.add_argument("--workspace-root", help="Workspace root")
+    p_inval.add_argument("--json", action="store_true", help="Emit JSON output")
+    p_inval.set_defaults(func=cmd_invalidate_assumption)
+
+    # resolve-invalidation
+    p_res_inval = subparsers.add_parser("resolve-invalidation", help="Resolve assumption invalidation Human Gate")
+    p_res_inval.add_argument("--invalidation-id", required=True, help="Invalidation ID (e.g. INVAL-001)")
+    p_res_inval.add_argument("--option-id", required=True, help="Selected Option ID (e.g. OPT-1)")
+    p_res_inval.add_argument("--summary", required=True, help="Human resolution summary")
+    p_res_inval.add_argument("--session-path", help="Session directory")
+    p_res_inval.add_argument("--workspace-root", help="Workspace root")
+    p_res_inval.add_argument("--json", action="store_true", help="Emit JSON output")
+    p_res_inval.set_defaults(func=cmd_resolve_invalidation)
 
     # test
     p_test = subparsers.add_parser("test", help="Run comprehensive test suite")

@@ -46,6 +46,11 @@ The `dag` skill transforms the AI agent from a linear, single-threaded executor 
 17. **Attention Sink Stabilization ($t \in [0, 3]$ vs $t \in [4, k]$)**: Numerical softmax dumping ground at positions 0..3 is reserved for system delimiters; semantic operational persona constraints must commence at position 4 to reside in low-entropy attractor basins.
 18. **5-Point Enterprise Invariant Readiness Scorecard**: Before approving any agent or persona for production execution, prompts and contracts must pass `fdag scorecard`.
 19. **Plausibility Trap & Input Gap Primacy**: Unconstrained LLMs paper over missing specifications by sampling median tutorial completions. All inputs must be audited against the 3-Class Input Gap Taxonomy via `fdag iga-check` prior to AWU decomposition.
+20. **Layered Socratic Input Clarification Gate (Phase 1.5)**: Before any further stages of the DAG engine (such as Atomic Decomposition, Persona Assignment, or AWU Execution) and strictly AFTER Cartography (Phase 1), the engine must conduct a layered input clarification and enhancement audit (`fdag clarify`):
+    - *Layer 1 (Structural & Boundary Audit)*: Verifies concrete parameters, types, bounds, nullability, and CLI/API schemas against filesystem and code facts.
+    - *Layer 2 (Invariant & Failure-Semantics Audit)*: Audits concurrency isolation, row locks, idempotency tokens, timeout SLAs, and partial failure paths against system invariants.
+    - *Layer 3 (Socratic Dialogue & Human Enhancement Gate)*: Formulates a strictly ordered series of Socratic dialogues, strictly **one question per interaction**, written in **plain human language** with all technical terms explained inline in parentheses or commas. Every inquiry performs a thorough evaluation of all viable options, presents the optimum option first and marks it `(Recommended)`. Zero ungrounded assumptions are allowed to reach Phase 2.
+21. **Execution-Phase Assumption Invalidation Human Gate**: If dynamic discovery during AWU execution, testing, SMT falsification, frame checking, or panel review unearths any empirical information that invalidates a prior assumption, autonomous progress on the affected scope is immediately HALTED (`status: "BLOCKED"`). An unappealable **Human Gate** is triggered. The engine must formulate a plain-language Socratic inquiry (`fdag invalidate-assumption`) presenting the invalidated assumption, empirical proof, and thoroughly evaluated options with the recommended path first. Execution remains frozen until the human provides explicit resolution (`fdag resolve-invalidation`).
 ---
 
 ## Workspace Directory Standard: `.omp_wip`
@@ -56,7 +61,9 @@ All intermediate execution artifacts, briefings, debriefings, DAG manifests, car
 .omp_wip/<YYYY-MM-DD>_<HH-MM-SS>_<task-moniker>/
 ├── 00_cartography/
 │   ├── cartography_report.md          # Comprehensive architectural & codebase mapping
-│   └── input_gap_analysis.md          # Upfront input audit against authoritative sources
+│   ├── input_gap_analysis.md          # Upfront input audit against authoritative sources
+│   ├── socratic_dialogues.json        # Machine-readable Phase 1.5 Socratic inquiries & resolutions
+│   └── socratic_dialogues.md          # Human-readable ledger of questions, evaluated options, and human answers
 ├── 01_dag/
 │   ├── dag_manifest.json              # Machine-readable DAG definition (nodes, edges, states)
 │   ├── dag_graph.md                   # Human-readable Mermaid visualization
@@ -82,8 +89,9 @@ All intermediate execution artifacts, briefings, debriefings, DAG manifests, car
 flowchart TD
     A["Phase 0: Workspace Init (.omp_wip)
     (scripts/init_dag_session.py)"] --> B["Phase 1: Exhaustive Cartography & Input Gap Analysis"]
-    B --> C["Phase 2: Atomic Decomposition & DAG Manifest Generation"]
-    C --> D["Phase 3: Persona Selection & Orthogonal Assignment"]
+    B --> B1["Phase 1.5: Layered Socratic Input Clarification Gate
+    (fdag clarify)"]
+    B1 --> C["Phase 2: Atomic Decomposition & DAG Manifest Generation"]
     D --> E["Phase 4: AWU Execution Loop (Topological Order)"]
     subgraph "AWU Execution Loop (Mandatory Per Maker)"
         E0["Scaffold Unit & Contracts
@@ -97,8 +105,14 @@ flowchart TD
         E6 -- "Yes" --> E7["Extract Structured Learnings & Negative Constraints into learnings.jsonl"] --> E1
         E6 -- "No" --> E8["Critical Socratic Human Escalation"]
         E5 --> E9{"Dynamic Discovery?"}
-        E9 -- "Yes" --> E10["Bounded Graph Addition (BGA)"] --> E5
-        E9 -- "No" --> E11["Unlock Downstream AWUs"]
+        E9 -- "Invalidated Assumption" --> E10A["Mandatory Human Gate
+        (fdag invalidate-assumption)"]
+        E10A --> E10B["Single-Question Socratic Inquiry
+        (Plain Human Language, Recommended First)"]
+        E10B --> E10C["Human Decision Sign-off
+        (fdag resolve-invalidation)"] --> E5
+        E9 -- "New Task Required" --> E10["Bounded Graph Addition (BGA)"] --> E5
+        E9 -- "None" --> E11["Unlock Downstream AWUs"]
     end
     E --> F["Phase 5: Global 3-Agent Adversarial Regression & Side-Effect Panel"]
     F --> G["Phase 6: Socratic Human Presentation & Archival"]
@@ -131,6 +145,44 @@ flowchart TD
    - `.omp_wip/<session>/00_cartography/cartography_report.md`
    - `.omp_wip/<session>/00_cartography/input_gap_analysis.md`
 
+
+### Phase 1.5: Layered Socratic Input Clarification & Enhancement Gate
+**Hard Invariant**: This phase is invoked strictly AFTER Cartography (Phase 1) and BEFORE DAG Decomposition (Phase 2) or any subsequent execution stages. No unverified assumptions are permitted to pass into the DAG manifest or AWU briefings.
+
+1. **Layered Audit Execution**:
+   Run the layered input clarification auditor:
+   ```bash
+   python3 ~/.omp/agent/skills/dag/scripts/socratic_dialogue.py audit --session-path .omp_wip/<session>/
+   # Or using the shell wrapper:
+   ~/.omp/agent/skills/dag/scripts/socratic_dialogue.sh audit --session-path .omp_wip/<session>/
+   # Or using the unified CLI:
+   ~/.omp/agent/skills/dag/scripts/fdag.sh clarify --session-path .omp_wip/<session>/
+   ```
+   - **Layer 1 (Structural & Boundary Audit)**: Audits stated inputs, missing parameter bounds, data types, payload schemas, formats, file paths, and environment constraints against code/filesystem cartography.
+   - **Layer 2 (Invariant & Failure-Semantics Audit)**: Audits deep architectural guarantees: concurrency isolation levels (e.g. read committed vs serializable), row/table locks, idempotency token mechanics, timeout SLAs, retry behaviors, partial failure fallbacks, backward compatibility, and immutability invariants.
+   - **Layer 3 (Socratic Intent & Trade-off Clarification)**: Translates every detected input gap, unverified assumption, ambiguity, or potential divergence into a dedicated Socratic dialogue inquiry.
+2. **Formally Enforced Socratic Dialogue Rules**:
+   - **Strictly ONE Question Per Dialogue**: The agent is structurally prohibited from batching multiple questions. Exactly one targeted question is presented per turn.
+   - **Exhaustive Evaluation of All Options**: Each dialogue must detail architectural trade-offs, pros, cons, and implications for all viable options (minimum 2).
+   - **Best Option Presented First & Marked `(Recommended)`**: The optimal choice is always placed at Index 0 and prefixed with `(Recommended)`.
+   - **Plain Human Language**: Written clearly for human comprehension. Every technical term (such as *idempotency*, *concurrency*, *mutex*, *SMT*, *AST*) MUST be explained immediately inline within parentheses or commas.
+3. **Interactive Step-by-Step Resolution & OMP `ask` Tool Integration**:
+   - **MANDATORY HUMAN PRESENTATION**: Autonomous subagents and orchestrators are STRICTLY FORBIDDEN from guessing, auto-resolving, or silently bypassing pending Socratic inquiries.
+   - **Precedence Over 'Never Yield' Prompt Rules**: The Phase 1.5 Human Gate is an inviolable architectural safety invariant that explicitly supersedes any general instruction to avoid yielding before complete deliverable.
+   - **OMP `ask` Tool Dispatch**:
+     Retrieve active question in OMP tool format:
+     ```bash
+     fdag clarify --step --ask-format --session-path .omp_wip/<session>/
+     ```
+     The agent MUST immediately invoke OMP's `ask` tool using the formatted payload (or present the single question clearly in chat) to collect the user's decision.
+   - **Record Decision**:
+     Upon receiving the human's response from `ask`, record the decision on disk:
+     ```bash
+     fdag clarify --resolve "SOCRATIC-001" --option "OPT-1" --session-path .omp_wip/<session>/
+     ```
+   - Repeat sequentially if multiple inquiries exist.
+4. **Zero-Assumption Exit Condition**:
+   Phase 2 (DAG Decomposition) is unlocked IF AND ONLY IF `fdag clarify` reports status `CLEAN_PASS` or `RESOLVED` with zero pending questions. Any unresolved gap constitutes a hard blocking gate.
 ### Phase 2: Atomic Decomposition & DAG Generation
 1. **Atomic Work Unit (AWU) Principles**:
    - Each AWU must have **Single Responsibility**: One clear outcome.
@@ -237,6 +289,24 @@ If unknown blockers are uncovered during execution:
 - Maximum 3 added nodes per session; depth increase $\le 1$; strict acyclicity; verified by independent auditor.
 - Full specification: [DAG Specification](./references/dag_graph_protocol.md).
 
+#### 8. Dynamic Discovery & Assumption Invalidation Human Gate
+If active execution, unit tests, SMT contract falsification, frame checking, or reviewer panels unearth empirical evidence that invalidates or contradicts any prior assumption:
+1. **Immediate Execution Freeze**:
+   Autonomous execution is immediately halted. The affected AWU is placed into `status: "BLOCKED"` in `dag_manifest.json`.
+2. **Mandatory Human Gate Trigger**:
+   Under the Zero-Hallucination axiom, agents are strictly forbidden from guessing a workaround. Register the invalidation:
+   ```bash
+   fdag invalidate-assumption --unit-id "<AWU-ID>" --assumption "<Prior Assumption>" --evidence "<Observed Failure/Trace>"
+   ```
+3. **Single-Question Socratic Inquiry**:
+   The engine formulates a Socratic dialogue in plain human language, presenting the broken assumption, empirical proof, and thoroughly evaluated options with the recommended path first.
+4. **Human Resolution & Unblocking**:
+   Once the human user makes a decision, record the resolution:
+   ```bash
+   fdag resolve-invalidation --invalidation-id "INVAL-001" --option-id "OPT-1" --summary "<Human Decision>"
+   ```
+   This updates the unit contract in `briefing.md`, appends the finding to `learnings.jsonl`, and unblocks the unit (`status: "IN_PROGRESS"`) to safely resume execution.
+
 ### Phase 5: Global 3-Agent Adversarial Regression & Side-Effect Panel
 Before task finalization, a holistic 3-agent adversarial panel evaluates the combined codebase diff:
 - **Panelist A (Blast Radius Auditor)**: **Claude Opus 5.5 xhigh** (`agent: 'reviewer'`) verifies untouched subsystems remain pristine and backward compatibility holds.
@@ -276,6 +346,10 @@ Before task finalization, a holistic 3-agent adversarial panel evaluates the com
 - [ ] Cartography report completed in `00_cartography/`?
 - [ ] Input Gap Analysis grounded in authoritative documentation?
 - [ ] Any assumptions made? (If yes, STOP and eliminate them).
+- [ ] Phase 1.5 Layered Socratic Input Clarification Gate completed via `fdag clarify`?
+- [ ] Zero unverified assumptions or input gaps remaining before DAG decomposition?
+- [ ] All Socratic inquiries conducted strictly one question per turn in plain human language?
+- [ ] All options thoroughly evaluated with `(Recommended)` choice presented first?
 - [ ] Work unit scaffolded via `scaffold_dag_unit` (.py / .sh) with mandatory files (briefing.json/md, panel_verdicts.json, learnings.jsonl)?
 - [ ] Formal `briefing.md` and typed `briefing.json` written to disk?
 - [ ] Declared `frame_conditions.modifies` write-set defined in manifest?
@@ -296,6 +370,7 @@ Before task finalization, a holistic 3-agent adversarial panel evaluates the com
 - [ ] If Sev-1/Sev-2 detected: Immediate REJECT enforced regardless of majority?
 - [ ] Learnings and negative constraints captured in `learnings.jsonl` and re-briefed?
 - [ ] Iteration count verified $\le 3$?
+- [ ] If any prior assumption was invalidated during execution, was the mandatory Human Gate triggered (`fdag invalidate-assumption`) and resolved (`fdag resolve-invalidation`)?
 ### Before Task Finalization:
 - [ ] Formal `debriefing.md` written for every AWU?
 - [ ] On-disk verification audited via `validate_dag` (`--audit-disk`)?
@@ -313,4 +388,4 @@ Before task finalization, a holistic 3-agent adversarial panel evaluates the com
 3. **Autonomous Subagent Execution**: Autonomous agents execute arbitrary shell commands and file mutations with active user privileges. Always execute within isolated sandboxes or disposable containers with verified backups.
 4. **No Professional or Legal Advice**: All simulated personas (including `LaborEmploymentCounsel`, `EnterpriseSecurityArchitect`, and `FormalMethodsProfessor`) generate probabilistic synthetic text. Outputs do NOT constitute certified legal, financial, architectural, or security advice.
 5. **API Costs & Terms**: Users bear sole responsibility for all third-party model provider token usage and charges.
-6. **Full Legal Terms**: See [DISCLAIMER.md](../../DISCLAIMER.md) for complete binding terms, conditions, and liability limits.
+6. **Full Legal Terms**: See [DISCLAIMER.md](./DISCLAIMER.md) for complete binding terms, conditions, and liability limits.

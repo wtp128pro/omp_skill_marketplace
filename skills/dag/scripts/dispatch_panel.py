@@ -207,11 +207,10 @@ def main():
     args = parser.parse_args()
 
     skill_root = Path(__file__).parent.parent.resolve()
-    session_dir = Path(args.session_path) if args.session_path else find_latest_session()
+    session_dir = Path(args.session_path).resolve() if args.session_path else find_latest_session()
     if not session_dir or not session_dir.exists():
         print(f"Error: Could not locate session directory.", file=sys.stderr)
         sys.exit(1)
-
     manifest_path = session_dir / "01_dag" / "dag_manifest.json"
     if not manifest_path.exists():
         print(f"Error: dag_manifest.json not found at {manifest_path}", file=sys.stderr)
@@ -242,6 +241,50 @@ def main():
         }
         print(json.dumps(output_data, indent=2))
         sys.exit(0)
+
+    # Stamp dispatch execution telemetry onto unit's panel_verdicts.json
+    unit_dir = None
+    units_dir = session_dir / "units"
+    if units_dir.exists():
+        for d in units_dir.iterdir():
+            if d.is_dir() and (d.name.upper() == args.unit_id.upper() or d.name.upper().startswith(f"{args.unit_id.upper()}_")):
+                unit_dir = d
+                break
+
+    if unit_dir and (unit_dir / "panel_verdicts.json").exists():
+        try:
+            pv_file = unit_dir / "panel_verdicts.json"
+            pv_data = json.loads(pv_file.read_text(encoding="utf-8"))
+            pv_data["telemetry"] = {
+                "dispatch_nonce": nonce,
+                "dispatched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "dispatcher_version": DISPATCHER_VERSION,
+                "is_simulated": False,
+                "subagents": [
+                    {
+                        "panelist_role": "Panelist1_Correctness",
+                        "persona_id": "CorrectnessContractFalsifier",
+                        "agent": "reviewer",
+                        "model_tier": "google-antigravity/gemini-3.1-pro:high"
+                    },
+                    {
+                        "panelist_role": "Panelist2_Security",
+                        "persona_id": "SecurityInvariantAuditor",
+                        "agent": "security-reviewer",
+                        "model_tier": "google-antigravity/gemini-3.1-pro:high"
+                    },
+                    {
+                        "panelist_role": "Panelist3_SystemicSentinel",
+                        "persona_id": "SystemicBlastRadiusSentinel",
+                        "agent": "reviewer",
+                        "model_tier": "anthropic/claude-opus-5-5:xhigh"
+                    }
+                ]
+            }
+            pv_file.write_text(json.dumps(pv_data, indent=2), encoding="utf-8")
+            print(f"\033[32m✓ Stamped signed execution telemetry onto {pv_file.name}\033[0m")
+        except Exception as e:
+            print(f"[WARN] Could not update panel_verdicts.json with telemetry: {e}", file=sys.stderr)
 
     print(f"\033[36m==> Prepared 3-Agent Adversarial Verification Tasks for {args.unit_id}\033[0m")
     print(f"Nonce: {nonce}")

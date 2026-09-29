@@ -46,6 +46,8 @@ The `dag` skill transforms an AI agent from a linear, single-threaded executor i
 8. **Bernstein Concurrency Non-Interference**: Parallel execution of independent peer units is mathematically verified ($\mathcal{R}_u \cap \mathcal{W}_v = \emptyset \land \mathcal{W}_u \cap \mathcal{R}_v = \emptyset \land \mathcal{W}_u \cap \mathcal{W}_v = \emptyset$).
 9. **Frame Containment & Mathematical Modifies Sets**: Units declare strict Write-Sets (`frame_conditions.modifies`). Unauthorized mutations trigger an immediate Sev-1 Frame Breach Veto.
 10. **SMT & Property-Based Falsification**: Automated contract verification using Z3 symbolic solving, Hypothesis property shrinking, and native boundary exploration.
+11. **Phase 1.5 Layered Socratic Input Clarification**: Prior to DAG decomposition and strictly post-Cartography, inputs are audited across 3 layers (Structural, Invariant, Socratic). Any ambiguity is resolved via single-question Socratic dialogue in plain language with evaluated options and `(Recommended)` first.
+12. **Execution-Phase Assumption Invalidation Human Gate**: Any empirical discovery during execution invalidating a prior assumption immediately halts the unit (`status: BLOCKED`) and enforces an unappealable Human Gate.
 
 ### Specialized Persona Catalog
 The skill includes 20+ specialized expert personas in `skills/dag/resources/personas/`:
@@ -324,6 +326,9 @@ python3 skills/dag/scripts/fdag.py --help
 - `fdag adjudicate --unit-id <AWU-ID>`: Enforce Severity-Over-Majority rule on 3-agent panel verdicts.
 - `fdag scorecard --persona-path <path>`: Evaluate 5-Point Enterprise Invariant Readiness Scorecard on prompt files.
 - `fdag iga-check --input-file <path>`: Detect 3-Class Input Gaps to prevent the LLM Plausibility Trap.
+- `fdag clarify --session-path <path>`: Execute Phase 1.5 Layered Socratic Input Clarification Gate (supports `--step` and `--resolve`).
+- `fdag invalidate-assumption --unit-id <ID>`: Register dynamic discovery assumption invalidation and trigger mandatory Human Gate.
+- `fdag resolve-invalidation --invalidation-id <ID>`: Formally resolve Human Gate and unblock AWU.
 - `fdag test`: Execute the comprehensive test suite (`test_fdag_suite.py`).
 
 ### Running the Test Suite
