@@ -1371,5 +1371,247 @@ class TestFdagCliCommands(unittest.TestCase):
         res_data = json.loads(r_res.stdout)
         self.assertTrue(res_data["success"])
 
+
+class TestMakerCheckerRoleSelectionAndOrchestration(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.sess = Path(self.tmp.name) / ".omp_wip" / "2026-10-01_00-00-00_test"
+        self.sess.mkdir(parents=True, exist_ok=True)
+        self.dag_dir = self.sess / "01_dag"
+        self.dag_dir.mkdir(parents=True, exist_ok=True)
+        self.units_dir = self.sess / "units"
+        self.units_dir.mkdir(parents=True, exist_ok=True)
+        self.manifest = self.dag_dir / "dag_manifest.json"
+        self.skill_root = Path(__file__).parent.parent.resolve()
+        self.fdag_bin = Path(__file__).parent / "fdag.py"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_dispatch_panel_dynamic_custom_checkers(self):
+        from dispatch_panel import build_panel_tasks
+        node_meta = {
+            "expected_outputs": ["src/db/pool.ts"],
+            "checker_personas": [
+                "DatabasePerformanceAuditor",
+                "EnterpriseSecurityArchitect",
+                "SystemicBlastRadiusSentinel"
+            ]
+        }
+        tasks, nonce = build_panel_tasks("AWU-001", node_meta, self.sess, self.skill_root)
+        self.assertEqual(len(tasks), 3)
+        self.assertIsNotNone(nonce)
+        # Panelist 1: DatabasePerformanceAuditor (reviewer)
+        self.assertEqual(tasks[0]["agent"], "reviewer")
+        self.assertEqual(tasks[0]["persona_id"], "DatabasePerformanceAuditor")
+        self.assertEqual(tasks[0]["panelist_role"], "Panelist1_Correctness")
+        self.assertIn("DatabasePerformanceAuditor", tasks[0]["task"])
+        # Panelist 2: EnterpriseSecurityArchitect (security-reviewer)
+        self.assertEqual(tasks[1]["agent"], "security-reviewer")
+        self.assertEqual(tasks[1]["persona_id"], "EnterpriseSecurityArchitect")
+        self.assertEqual(tasks[1]["panelist_role"], "Panelist2_Security")
+        self.assertIn("EnterpriseSecurityArchitect", tasks[1]["task"])
+        # Panelist 3: SystemicBlastRadiusSentinel (reviewer)
+        self.assertEqual(tasks[2]["agent"], "reviewer")
+        self.assertEqual(tasks[2]["persona_id"], "SystemicBlastRadiusSentinel")
+        self.assertEqual(tasks[2]["panelist_role"], "Panelist3_SystemicSentinel")
+        self.assertIn("SystemicBlastRadiusSentinel", tasks[2]["task"])
+
+    def test_dispatch_panel_override_checkers(self):
+        from dispatch_panel import build_panel_tasks
+        node_meta = {"expected_outputs": ["macos/app.swift"]}
+        override = [
+            "AdversarialQaEngineer",
+            "MacOSAppStoreSentinel",
+            "SystemicBlastRadiusSentinel"
+        ]
+        tasks, nonce = build_panel_tasks("AWU-002", node_meta, self.sess, self.skill_root, checker_personas_override=override)
+        self.assertEqual(tasks[0]["persona_id"], "AdversarialQaEngineer")
+        self.assertEqual(tasks[1]["persona_id"], "MacOSAppStoreSentinel")
+        self.assertEqual(tasks[1]["agent"], "security-reviewer")
+        self.assertEqual(tasks[2]["persona_id"], "SystemicBlastRadiusSentinel")
+
+    def test_scaffold_dag_unit_with_custom_checkers(self):
+        from scaffold_dag_unit import formal_scaffold_unit
+        # Scaffold with custom checkers
+        res = formal_scaffold_unit(
+            unit_id="AWU-010",
+            slug="db-worker",
+            title="Database Worker",
+            maker_persona="BackendSystemsDeveloper",
+            checker_personas=["DatabasePerformanceAuditor", "EnterpriseSecurityArchitect", "SystemicBlastRadiusSentinel"],
+            session_path=str(self.sess),
+            json_output=True
+        )
+        u_dir = Path(res["unit_dir"])
+        # 1. briefing.json must record checker personas
+        b_json = json.loads((u_dir / "briefing.json").read_text(encoding="utf-8"))
+        self.assertEqual(b_json["assigned_maker_persona"], "BackendSystemsDeveloper")
+        self.assertEqual(b_json["checker_personas"], ["DatabasePerformanceAuditor", "EnterpriseSecurityArchitect", "SystemicBlastRadiusSentinel"])
+
+        # 2. briefing.md must list assigned checkers
+        b_md = (u_dir / "briefing.md").read_text(encoding="utf-8")
+        self.assertIn("DatabasePerformanceAuditor", b_md)
+        self.assertIn("EnterpriseSecurityArchitect", b_md)
+
+        # 3. panel_verdicts.json template must use resolved custom checkers
+        pv_data = json.loads((u_dir / "panel_verdicts.json").read_text(encoding="utf-8"))
+        panelists = pv_data["panelists"]
+        self.assertEqual(len(panelists), 3)
+        self.assertEqual(panelists[0]["persona_id"], "DatabasePerformanceAuditor")
+        self.assertEqual(panelists[0]["panelist_role"], "Panelist1_Correctness")
+        self.assertEqual(panelists[1]["persona_id"], "EnterpriseSecurityArchitect")
+        self.assertEqual(panelists[1]["panelist_role"], "Panelist2_Security")
+        self.assertEqual(panelists[2]["persona_id"], "SystemicBlastRadiusSentinel")
+        self.assertEqual(panelists[2]["panelist_role"], "Panelist3_SystemicSentinel")
+
+    def test_validate_dag_maker_role_enforcement(self):
+        # 1. Unresolvable maker persona must fail validation
+        m_data = {
+            "session_id": "2026-10-01_00-00-00_test",
+            "task_moniker": "test",
+            "graph_version": 2,
+            "nodes": [
+                {
+                    "id": "AWU-001",
+                    "slug": "test",
+                    "title": "Test",
+                    "tier": "standard",
+                    "status": "PENDING",
+                    "assigned_maker_persona": "NonExistentMakerPersona",
+                    "checker_personas": ["CorrectnessContractFalsifier", "SecurityInvariantAuditor", "SystemicBlastRadiusSentinel"],
+                    "dependencies": [],
+                    "inputs": [],
+                    "expected_outputs": ["out.ts"],
+                    "frame_conditions": {"modifies": ["out.ts"]},
+                    "iteration_count": 0,
+                    "max_iterations": 3
+                }
+            ]
+        }
+        self.manifest.write_text(json.dumps(m_data, indent=2))
+        ok = validate_formal_dag(manifest_path=str(self.manifest), json_output=True)
+        self.assertFalse(ok)
+
+        # 2. Checker assigned as Maker must fail validation (role_category != Maker)
+        m_data["nodes"][0]["assigned_maker_persona"] = "SecurityInvariantAuditor"
+        m_data["nodes"][0]["checker_personas"] = ["CorrectnessContractFalsifier", "EnterpriseSecurityArchitect", "SystemicBlastRadiusSentinel"]
+        self.manifest.write_text(json.dumps(m_data, indent=2))
+        ok = validate_formal_dag(manifest_path=str(self.manifest), json_output=True)
+        self.assertFalse(ok)
+
+        # 3. Valid Maker persona passes
+        m_data["nodes"][0]["assigned_maker_persona"] = "PrincipalSystemsMaker"
+        m_data["nodes"][0]["checker_personas"] = ["CorrectnessContractFalsifier", "SecurityInvariantAuditor", "SystemicBlastRadiusSentinel"]
+        self.manifest.write_text(json.dumps(m_data, indent=2))
+        ok = validate_formal_dag(manifest_path=str(self.manifest), json_output=True)
+        self.assertTrue(ok)
+
+    def test_validate_dag_checker_triad_enforcement(self):
+        m_data = {
+            "session_id": "2026-10-01_00-00-00_test",
+            "task_moniker": "test",
+            "graph_version": 2,
+            "nodes": [
+                {
+                    "id": "AWU-001",
+                    "slug": "test",
+                    "title": "Test",
+                    "tier": "standard",
+                    "status": "PENDING",
+                    "assigned_maker_persona": "PrincipalSystemsMaker",
+                    "checker_personas": [
+                        "CorrectnessContractFalsifier",
+                        "DatabasePerformanceAuditor",
+                        "FormalMethodsProfessor"
+                    ],
+                    "dependencies": [],
+                    "inputs": [],
+                    "expected_outputs": ["out.ts"],
+                    "frame_conditions": {"modifies": ["out.ts"]},
+                    "iteration_count": 0,
+                    "max_iterations": 3
+                }
+            ]
+        }
+        # 1. Three Panelist 1s (no Panelist 2 or 3) must FAIL triad validation
+        self.manifest.write_text(json.dumps(m_data, indent=2))
+        ok = validate_formal_dag(manifest_path=str(self.manifest), json_output=True)
+        self.assertFalse(ok)
+
+        # 2. Valid heterogeneous triad across domains must PASS
+        m_data["nodes"][0]["checker_personas"] = [
+            "DatabasePerformanceAuditor",
+            "EnterpriseSecurityArchitect",
+            "SystemicBlastRadiusSentinel"
+        ]
+        self.manifest.write_text(json.dumps(m_data, indent=2))
+        ok = validate_formal_dag(manifest_path=str(self.manifest), json_output=True)
+        self.assertTrue(ok)
+
+    def test_audit_readiness_scorecard_maker_and_checker_profiles(self):
+        from audit_readiness_scorecard import audit_readiness_criteria
+        # 1. Audit Maker profile
+        maker_file = self.skill_root / "resources" / "personas" / "PrincipalSystemsMaker.json"
+        maker_data = json.loads(maker_file.read_text(encoding="utf-8"))
+        res_maker = audit_readiness_criteria(prompt_text="", persona_obj=maker_data, adjudication_active=True)
+        self.assertTrue(res_maker["is_production_ready"])
+        self.assertEqual(res_maker["passed_criteria_count"], 5)
+
+        # 2. Audit Checker profile
+        checker_file = self.skill_root / "resources" / "personas" / "CorrectnessContractFalsifier.json"
+        checker_data = json.loads(checker_file.read_text(encoding="utf-8"))
+        res_checker = audit_readiness_criteria(prompt_text="", persona_obj=checker_data, adjudication_active=True)
+        self.assertTrue(res_checker["is_production_ready"])
+        self.assertEqual(res_checker["passed_criteria_count"], 5)
+
+    def test_attestation_detects_duplicate_panelist_roles(self):
+        dup_roles = {
+            "telemetry": {
+                "is_simulated": False,
+                "subagents": [
+                    {"panelist_role": "Panelist1_Correctness", "model_tier": "gemini-pro"},
+                    {"panelist_role": "Panelist1_Correctness", "model_tier": "gemini-pro"},
+                    {"panelist_role": "Panelist3_SystemicSentinel", "model_tier": "claude-opus"}
+                ]
+            }
+        }
+        defects = validate_telemetry_attestation(dup_roles)
+        self.assertTrue(any(d["defect_id"] == "ATTEST-004" for d in defects))
+
+    def test_fdag_cli_scaffold_and_panel_with_checker_personas(self):
+        # 1. Initialize session via CLI
+        r_init = subprocess.run([sys.executable, str(self.fdag_bin), "init", "--task-moniker", "role-test", "--workspace-root", self.tmp.name, "--json"], capture_output=True, text=True)
+        self.assertEqual(r_init.returncode, 0)
+        sess_path = json.loads(r_init.stdout)["SessionPath"]
+
+        # 2. Scaffold unit with custom maker and checker personas via CLI
+        r_scaf = subprocess.run([
+            sys.executable, str(self.fdag_bin), "scaffold",
+            "--unit-id", "AWU-001",
+            "--title", "Auth Token Unit",
+            "--maker-persona", "PrincipalSystemsMaker",
+            "--checker-personas", "DatabasePerformanceAuditor,EnterpriseSecurityArchitect,SystemicBlastRadiusSentinel",
+            "--session-path", sess_path,
+            "--json"
+        ], capture_output=True, text=True)
+        self.assertEqual(r_scaf.returncode, 0, f"Scaffold failed: {r_scaf.stderr}")
+
+        # 3. Dispatch panel via CLI dry-run
+        r_pan = subprocess.run([
+            sys.executable, str(self.fdag_bin), "panel",
+            "--unit-id", "AWU-001",
+            "--session-path", sess_path,
+            "--dry-run",
+            "--json"
+        ], capture_output=True, text=True)
+        self.assertEqual(r_pan.returncode, 0, f"Panel dispatch failed: {r_pan.stderr}")
+        pan_data = json.loads(r_pan.stdout)
+        self.assertEqual(len(pan_data["tasks"]), 3)
+        self.assertEqual(pan_data["tasks"][0]["persona_id"], "DatabasePerformanceAuditor")
+        self.assertEqual(pan_data["tasks"][1]["persona_id"], "EnterpriseSecurityArchitect")
+        self.assertEqual(pan_data["tasks"][2]["persona_id"], "SystemicBlastRadiusSentinel")
+
+
 if __name__ == "__main__":
     unittest.main()

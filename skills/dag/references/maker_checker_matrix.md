@@ -51,30 +51,35 @@ The `dag` skill maintains a formalized roster of 20 operationalized personas adh
 │    Storage (Java/Go/DB)     │ BackendSystemsDeveloper   │ EnterpriseSecurityArchitect (Panelist 2)     │
 │                             │ DistributedStorageSpecial.│ SystemicBlastRadiusSentinel (Panelist 3)     │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
-│ 2. Enterprise Security,     │ PrincipalSystemsMaker     │ EnterpriseSecurityArchitect (Panelist 2)     │
-│    IAM & Cryptography       │ TypeSafeApiArchitect      │ SecurityInvariantAuditor (Panelist 2)        │
+│ 2. Enterprise Security,     │ PrincipalSystemsMaker     │ CorrectnessContractFalsifier (Panelist 1)    │
+│    IAM & Cryptography       │ TypeSafeApiArchitect      │ EnterpriseSecurityArchitect (Panelist 2)     │
+│                             │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
-│ 3. US Labor Law &           │ LaborEmploymentCounsel    │ AdversarialQaEngineer (Panelist 1)         │
-│    Employment Contracts     │                           │ LaborLawComplianceAuditor (Panelist 3)       │
+│ 3. US Labor Law &           │ LaborEmploymentCounsel    │ AdversarialQaEngineer (Panelist 1)           │
+│    Employment Contracts     │                           │ SecurityInvariantAuditor (Panelist 2)        │
+│                             │                           │ LaborLawComplianceAuditor (Panelist 3)       │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
-│ 4. macOS Native Desktop &   │ MacOSSwiftProgrammer      │ AdversarialQaEngineer (Panelist 1)         │
+│ 4. macOS Native Desktop &   │ MacOSSwiftProgrammer      │ AdversarialQaEngineer (Panelist 1)           │
 │    Human Interface (HIG)    │ MacOSUxDesigner           │ MacOSAppStoreSentinel (Panelist 2)           │
 │                             │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
-│ 5. Boundary Falsification & │ PrincipalSystemsMaker     │ AdversarialQaEngineer (Panelist 1)         │
-│    Exhaustive QA Testing    │ BackendSystemsDeveloper   │ CorrectnessContractFalsifier (Panelist 1)    │
+│ 5. Boundary Falsification & │ PrincipalSystemsMaker     │ AdversarialQaEngineer (Panelist 1)           │
+│    Exhaustive QA Testing    │ BackendSystemsDeveloper   │ SecurityInvariantAuditor (Panelist 2)        │
+│                             │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
 │ 6. Formal Methods &         │ TypeSafeApiArchitect      │ FormalMethodsProfessor (Panelist 1)          │
-│    SMT Theorem Proving      │                           │ CorrectnessContractFalsifier (Panelist 1)    │
+│    SMT Theorem Proving      │                           │ SecurityInvariantAuditor (Panelist 2)        │
+│                             │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
 │ 7. LLM Systems, Training &  │ LlmSystemsArchitect       │ FormalMethodsProfessor (Panelist 1)          │
 │    Autonomous Agent Skills  │                           │ EnterpriseSecurityArchitect (Panelist 2)     │
 │                             │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
-│ 8. Cloud-Native Infra & SRE │ SiteReliabilityEngineer   │ EnterpriseSecurityArchitect (Panelist 2)     │
-│    (K8s/Terraform/Otel)     │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
+│ 8. Cloud-Native Infra & SRE │ SiteReliabilityEngineer   │ AdversarialQaEngineer (Panelist 1)           │
+│    (K8s/Terraform/Otel)     │                           │ EnterpriseSecurityArchitect (Panelist 2)     │
+│                             │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
 ├─────────────────────────────┼───────────────────────────┼──────────────────────────────────────────────┤
-│ 9. Web Frontend Systems     │ FrontendWebArchitect      │ AdversarialQaEngineer (Panelist 1)         │
+│ 9. Web Frontend Systems     │ FrontendWebArchitect      │ AdversarialQaEngineer (Panelist 1)           │
 │    (TypeScript/React/WCAG)  │                           │ SecurityInvariantAuditor (Panelist 2)        │
 │                             │                           │ SystemicBlastRadiusSentinel (Panelist 3)     │
 └─────────────────────────────┴───────────────────────────┴──────────────────────────────────────────────┘

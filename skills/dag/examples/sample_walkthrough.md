@@ -28,9 +28,9 @@ The Cartographer scans the repository and authoritative standards:
 
 ## Step 3: DAG Formulation
 The task is decomposed into atomic units:
-1. `AWU-001`: Crypto Token Primitives (Maker: `Cryptographic Systems Engineer`)
-2. `AWU-002`: Session Cache Adapter (Maker: `Distributed Storage Architect`, depends on `AWU-001`)
-3. `AWU-003`: HTTP Authentication Middleware (Maker: `Type-Safe API Architect`, depends on `AWU-001`, `AWU-002`)
+1. `AWU-001`: Crypto Token Primitives (Maker: `PrincipalSystemsMaker`)
+2. `AWU-002`: Session Cache Adapter (Maker: `DistributedStorageSpecialist`, depends on `AWU-001`)
+3. `AWU-003`: HTTP Authentication Middleware (Maker: `TypeSafeApiArchitect`, depends on `AWU-001`, `AWU-002`)
 
 Validated with:
 ```bash
@@ -46,9 +46,9 @@ python3 ~/.omp/agent/skills/dag/scripts/validate_dag.py --manifest-path .omp_wip
 ### 1. Unit Scaffolding & Formal Briefing
 The orchestrator scaffolds the unit with all required contracts and self-learning log:
 ```bash
-python3 ~/.omp/agent/skills/dag/scripts/scaffold_dag_unit.py --unit-id "AWU-001" --slug "crypto-primitives" --title "Implement Crypto Token Primitives" --maker-persona "Cryptographic Systems Engineer"
+python3 ~/.omp/agent/skills/dag/scripts/scaffold_dag_unit.py --unit-id "AWU-001" --slug "crypto-primitives" --title "Implement Crypto Token Primitives" --maker-persona "PrincipalSystemsMaker"
 # Or using the shell wrapper:
-~/.omp/agent/skills/dag/scripts/scaffold_dag_unit.sh --unit-id "AWU-001" --slug "crypto-primitives" --title "Implement Crypto Token Primitives" --maker-persona "Cryptographic Systems Engineer"
+~/.omp/agent/skills/dag/scripts/scaffold_dag_unit.sh --unit-id "AWU-001" --slug "crypto-primitives" --title "Implement Crypto Token Primitives" --maker-persona "PrincipalSystemsMaker"
 ```
 `.omp_wip/.../units/AWU-001_crypto-primitives/briefing.md` specifies pre-conditions, post-conditions, and assigned model **Gemini 3.8 Flash High** (OMP `agent: 'task'`).
 

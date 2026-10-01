@@ -110,6 +110,17 @@ def validate_telemetry_attestation(raw_data: Optional[Dict[str, Any]]) -> List[D
                 "negative_constraint": "Panelists 1 & 2 MUST run on Deep Reasoning tier (Gemini Pro), and Panelist 3 MUST run on Macro-Reasoning tier (Claude Opus 5.5)."
             })
 
+        subagent_roles = [s.get("panelist_role", "") for s in subagents if isinstance(s, dict) and s.get("panelist_role")]
+        if len(subagent_roles) == 3 and len(set(subagent_roles)) < 3:
+            defects.append({
+                "defect_id": "ATTEST-004",
+                "severity": "Sev-1",
+                "summary": "CRITICAL ATTESTATION BREACH: Subagents share duplicate panelist roles. Triad role separation violated.",
+                "counterexample": f"Duplicate panelist roles found in telemetry: {subagent_roles}",
+                "root_cause": "Verification panel did not dispatch 3 distinct roles (Panelist1_Correctness, Panelist2_Security, Panelist3_SystemicSentinel).",
+                "negative_constraint": "Each verification panel MUST dispatch 3 distinct panelist roles across heterogeneous tiers."
+            })
+
     return defects
 
 

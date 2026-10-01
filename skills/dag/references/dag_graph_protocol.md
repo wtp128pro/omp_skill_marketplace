@@ -44,11 +44,11 @@ The orchestrator maintains the canonical state of the graph in `.omp_wip/<sessio
       "slug": "token-crypto-primitives",
       "title": "Implement Cryptographic Token Primitives",
       "status": "COMPLETED",
-      "assigned_maker_persona": "Cryptographic Systems Engineer",
+      "assigned_maker_persona": "PrincipalSystemsMaker",
       "checker_personas": [
-        "Cryptographic Boundary Falsifier",
-        "Memory Safety & Invariants Auditor",
-        "Regression Inquisitor"
+        "CorrectnessContractFalsifier",
+        "SecurityInvariantAuditor",
+        "SystemicBlastRadiusSentinel"
       ],
       "dependencies": [],
       "inputs": ["src/crypto/constants.ts"],
@@ -61,11 +61,11 @@ The orchestrator maintains the canonical state of the graph in `.omp_wip/<sessio
       "slug": "session-store-interface",
       "title": "Define Redis Session Store Adapter",
       "status": "PENDING",
-      "assigned_maker_persona": "Distributed Storage Architect",
+      "assigned_maker_persona": "DistributedStorageSpecialist",
       "checker_personas": [
-        "Distributed State Falsifier",
-        "Security & Connection Invariants Auditor",
-        "Contract Regression Inquisitor"
+        "DatabasePerformanceAuditor",
+        "EnterpriseSecurityArchitect",
+        "SystemicBlastRadiusSentinel"
       ],
       "dependencies": ["AWU-001"],
       "inputs": ["src/crypto/token.ts"],

@@ -57,11 +57,11 @@ def cmd_scaffold(args):
         slug=args.slug,
         title=args.title,
         maker_persona=args.maker_persona,
+        checker_personas=getattr(args, "checker_personas", None),
         session_path=args.session_path,
         workspace_root=args.workspace_root,
         json_output=args.json
     )
-
 
 def cmd_falsify(args):
     from smt_contract_verifier import demo_falsification_suite
@@ -103,7 +103,15 @@ def cmd_scorecard(args):
         if not p.exists():
             print(f"[ERROR] Prompt file not found: {p}", file=sys.stderr)
             sys.exit(1)
-        res = audit_readiness_criteria(prompt_text=p.read_text(encoding="utf-8"), adjudication_active=True)
+        text = p.read_text(encoding="utf-8")
+        if p.suffix == ".json":
+            try:
+                persona_data = json.loads(text)
+                res = audit_readiness_criteria(prompt_text="", persona_obj=persona_data, adjudication_active=True)
+            except Exception:
+                res = audit_readiness_criteria(prompt_text=text, adjudication_active=True)
+        else:
+            res = audit_readiness_criteria(prompt_text=text, adjudication_active=True)
     else:
         from dag_utils import find_latest_session, find_resource_file
         sess = Path(args.session_path).resolve() if args.session_path else find_latest_session(args.workspace_root)
@@ -179,6 +187,8 @@ def cmd_test(args):
 def cmd_panel(args):
     script = Path(__file__).parent / "dispatch_panel.py"
     cmd = [sys.executable, str(script), "--unit-id", args.unit_id]
+    if getattr(args, "checker_personas", None):
+        cmd.extend(["--checker-personas", args.checker_personas])
     if args.session_path:
         cmd.extend(["--session-path", args.session_path])
     if getattr(args, "dry_run", False):
@@ -187,7 +197,6 @@ def cmd_panel(args):
         cmd.append("--json")
     res = subprocess.run(cmd)
     sys.exit(res.returncode)
-
 def cmd_clarify(args):
     from socratic_dialogue import (
         audit_layered_input_clarification,
@@ -403,6 +412,7 @@ def main():
     p_scaf.add_argument("--slug", help="URL-safe slug")
     p_scaf.add_argument("--title", help="Unit title")
     p_scaf.add_argument("--maker-persona", help="Maker persona ID")
+    p_scaf.add_argument("--checker-personas", help="Checker persona IDs (comma-separated or JSON list)")
     p_scaf.add_argument("--session-path", help="Session directory")
     p_scaf.add_argument("--workspace-root", help="Workspace root")
     p_scaf.add_argument("--json", action="store_true", help="Emit JSON output")
@@ -433,6 +443,7 @@ def main():
     # panel
     p_pan = subparsers.add_parser("panel", help="Dispatch multi-model adversarial verification panel via subagents")
     p_pan.add_argument("--unit-id", required=True, help="Unit ID (e.g. AWU-001)")
+    p_pan.add_argument("--checker-personas", help="Override checker persona IDs (comma-separated or JSON list)")
     p_pan.add_argument("--session-path", help="Session directory")
     p_pan.add_argument("--dry-run", action="store_true", help="Dry-run: generate task payload without dispatch")
     p_pan.add_argument("--json", action="store_true", help="Emit JSON")

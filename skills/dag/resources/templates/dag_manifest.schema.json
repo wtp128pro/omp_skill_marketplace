@@ -52,14 +52,47 @@
             "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "BLOCKED"]
           },
           "assigned_maker_persona": {
-            "type": "string"
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["persona_id"],
+                "properties": {
+                  "persona_id": { "type": "string" },
+                  "display_name": { "type": "string" },
+                  "model_tier": { "type": "string" },
+                  "epistemic_stance": {
+                    "type": "string",
+                    "enum": ["constructive_synthesis", "algorithmic_precision", "systems_minimalism"]
+                  }
+                }
+              }
+            ]
           },
           "checker_personas": {
             "type": "array",
             "minItems": 3,
             "maxItems": 3,
             "items": {
-              "type": "string"
+              "oneOf": [
+                { "type": "string" },
+                {
+                  "type": "object",
+                  "required": ["persona_id"],
+                  "properties": {
+                    "panelist_role": {
+                      "type": "string",
+                      "enum": ["Panelist1_Correctness", "Panelist2_Security", "Panelist3_SystemicSentinel"]
+                    },
+                    "persona_id": { "type": "string" },
+                    "model_tier": { "type": "string" },
+                    "epistemic_stance": {
+                      "type": "string",
+                      "enum": ["hostile_falsification", "adversarial_exploit", "macro_sentinel"]
+                    }
+                  }
+                }
+              ]
             }
           },
           "dependencies": {

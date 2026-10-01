@@ -52,15 +52,16 @@
 - `{{NEGATIVE_CONSTRAINT_1}}`
 - `{{NEGATIVE_CONSTRAINT_2}}`
 
-## 8. Output Rigor Schema (JSON_STRICT)
-- Verification format: `JSON_STRICT` conforming to `panel_verdict.schema.json`.
-- Automated test runner outputs must be captured with exit code proofs.
----
-
 ## 7. Verification & Acceptance Criteria
 - [ ] Comprehensive code documentation with all parameters, pre/post conditions, and inline concept explanations.
 - [ ] Unit tests covering nominal execution paths and extreme boundaries.
 - [ ] Frame conditions verified via frame_condition_auditor.py (zero unauthorized writes).
 - [ ] All automated tests pass with exit code 0.
 - [ ] 3-agent adversarial panel approval (Zero Sev-1/Sev-2 defects without valid architectural waiver).
+
+---
+
+## 8. Output Rigor Schema (JSON_STRICT)
+- Verification format: `JSON_STRICT` conforming to `panel_verdict.schema.json`.
+- Automated test runner outputs must be captured with exit code proofs.
 </system_contract>

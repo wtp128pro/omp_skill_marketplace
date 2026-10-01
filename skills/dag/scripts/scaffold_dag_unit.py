@@ -80,6 +80,7 @@ def formal_scaffold_unit(
             pass
 
     # Populate from manifest if available
+    manifest_checkers = manifest_node.get("checker_personas", []) if manifest_node else []
     if manifest_node:
         slug = slug or manifest_node.get("slug", "")
         title = title or manifest_node.get("title", "")
@@ -100,6 +101,58 @@ def formal_scaffold_unit(
     inputs = inputs or []
     expected_outputs = expected_outputs or modifies
 
+    # Resolve checker personas from argument, manifest, or default triad
+    checkers_source = checker_personas or manifest_checkers or [
+        "CorrectnessContractFalsifier",
+        "SecurityInvariantAuditor",
+        "SystemicBlastRadiusSentinel"
+    ]
+    if isinstance(checkers_source, str):
+        try:
+            checkers_list = json.loads(checkers_source)
+        except Exception:
+            checkers_list = [c.strip() for c in checkers_source.split(",") if c.strip()]
+    else:
+        checkers_list = list(checkers_source)
+
+    default_panelists = [
+        {"role": "Panelist1_Correctness", "persona": "CorrectnessContractFalsifier", "model": "google-antigravity/gemini-3.1-pro:high"},
+        {"role": "Panelist2_Security", "persona": "SecurityInvariantAuditor", "model": "google-antigravity/gemini-3.1-pro:high"},
+        {"role": "Panelist3_SystemicSentinel", "persona": "SystemicBlastRadiusSentinel", "model": "anthropic/claude-opus-5-5:xhigh"},
+    ]
+
+    resolved_panelists = []
+    resolved_checker_ids = []
+    for idx, def_p in enumerate(default_panelists):
+        c_spec = checkers_list[idx] if idx < len(checkers_list) else def_p["persona"]
+        c_id = c_spec.get("persona_id") if isinstance(c_spec, dict) else str(c_spec).strip()
+        if not c_id:
+            c_id = def_p["persona"]
+        resolved_checker_ids.append(c_id)
+
+        prof_file = find_resource_file(f"{c_id}.json", sess_dir)
+        p_role = def_p["role"]
+        p_model = def_p["model"]
+        if prof_file and prof_file.exists():
+            try:
+                prof_data = json.loads(prof_file.read_text(encoding="utf-8"))
+                cat = prof_data.get("identity_and_mandate", {}).get("role_category", def_p["role"])
+                if cat.startswith("Panelist"):
+                    p_role = cat
+                p_model = prof_data.get("model_tier_binding", {}).get("recommended_model", def_p["model"])
+            except Exception:
+                pass
+
+        resolved_panelists.append({
+            "panelist_role": p_role,
+            "persona_id": c_id,
+            "model_tier": p_model,
+            "vote": "PENDING",
+            "highest_severity": "None",
+            "falsification_evidence": ["Initial scaffolding pending adversarial panel verification."],
+            "defects": []
+        })
+
     unit_dirname = f"{clean_unit_id}_{slug}"
     unit_dir = sess_dir / "units" / unit_dirname
     unit_dir.mkdir(parents=True, exist_ok=True)
@@ -110,6 +163,7 @@ def formal_scaffold_unit(
         "title": title,
         "tier": tier,
         "assigned_maker_persona": maker_persona,
+        "checker_personas": resolved_checker_ids,
         "contracts": {
           "pre_conditions": [],
           "post_conditions": [],
@@ -131,6 +185,7 @@ def formal_scaffold_unit(
 ## 1. Execution Metadata
 - **AWU Identifier**: `{clean_unit_id}`
 - **Assigned Maker Persona**: `{maker_persona}`
+- **Assigned Checker Personas**: {', '.join(resolved_checker_ids)}
 - **Execution Tier**: `{tier}`
 - **Iteration Index**: 1 of 3
 - **Prerequisite Units**: {dependencies or 'None'}
@@ -167,35 +222,7 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
     panel_verdicts_template = {
       "unit_id": clean_unit_id,
       "waivers": [],
-      "panelists": [
-        {
-          "panelist_role": "Panelist1_Correctness",
-          "persona_id": "CorrectnessContractFalsifier",
-          "model_tier": "google-antigravity/gemini-3.1-pro:high",
-          "vote": "PENDING",
-          "highest_severity": "None",
-          "falsification_evidence": ["Initial scaffolding pending adversarial panel verification."],
-          "defects": []
-        },
-        {
-          "panelist_role": "Panelist2_Security",
-          "persona_id": "SecurityInvariantAuditor",
-          "model_tier": "google-antigravity/gemini-3.1-pro:high",
-          "vote": "PENDING",
-          "highest_severity": "None",
-          "falsification_evidence": ["Initial scaffolding pending adversarial panel verification."],
-          "defects": []
-        },
-        {
-          "panelist_role": "Panelist3_SystemicSentinel",
-          "persona_id": "SystemicBlastRadiusSentinel",
-          "model_tier": "anthropic/claude-opus-5-5:xhigh",
-          "vote": "PENDING",
-          "highest_severity": "None",
-          "falsification_evidence": ["Initial scaffolding pending adversarial panel verification."],
-          "defects": []
-        }
-      ]
+      "panelists": resolved_panelists
     }
     (unit_dir / "panel_verdicts.json").write_text(json.dumps(panel_verdicts_template, indent=2), encoding="utf-8")
 
@@ -228,11 +255,7 @@ Execute work unit {clean_unit_id} adhering to declared contracts and frame condi
             "tier": tier,
             "status": "PENDING",
             "assigned_maker_persona": maker_persona,
-            "checker_personas": [
-                "CorrectnessContractFalsifier",
-                "SecurityInvariantAuditor",
-                "SystemicBlastRadiusSentinel"
-            ],
+            "checker_personas": resolved_checker_ids,
             "dependencies": dependencies,
             "inputs": inputs,
             "expected_outputs": expected_outputs,
@@ -269,16 +292,25 @@ if __name__ == "__main__":
     parser.add_argument("--slug", help="URL-safe slug")
     parser.add_argument("--title", help="Human-readable title")
     parser.add_argument("--maker-persona", help="Assigned Maker persona ID")
+    parser.add_argument("--checker-personas", help="Assigned Checker personas (comma-separated or JSON list)")
     parser.add_argument("--session-path", help="Path to active session")
     parser.add_argument("--workspace-root", help="Root directory containing .omp_wip")
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     args = parser.parse_args()
+
+    checker_personas_arg = None
+    if args.checker_personas:
+        try:
+            checker_personas_arg = json.loads(args.checker_personas)
+        except Exception:
+            checker_personas_arg = [c.strip() for c in args.checker_personas.split(",") if c.strip()]
 
     formal_scaffold_unit(
         unit_id=args.unit_id,
         slug=args.slug,
         title=args.title,
         maker_persona=args.maker_persona,
+        checker_personas=checker_personas_arg,
         session_path=args.session_path,
         workspace_root=args.workspace_root,
         json_output=args.json

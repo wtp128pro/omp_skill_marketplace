@@ -253,6 +253,11 @@ flowchart TD
             "recommended_role": "default",
             "model": "google-antigravity/gemini-3.8-flash:high"
         },
+        "architectural_maker_tier": {
+            "agent": "task",
+            "recommended_role": "architect",
+            "model": "anthropic/claude-opus-5-5:xhigh"
+        },
         "checker_tiers": {
             "Panelist1_Correctness": {"agent": "reviewer", "role": "slow", "model": "google-antigravity/gemini-3.1-pro:high"},
             "Panelist2_Security": {"agent": "security-reviewer", "role": "slow", "model": "google-antigravity/gemini-3.1-pro:high"},

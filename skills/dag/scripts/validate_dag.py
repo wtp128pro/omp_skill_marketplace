@@ -341,44 +341,80 @@ def validate_formal_dag(
         # 7-Tuple Persona Profile & Stance Orthogonality Verification
         sess_dir = manifest_file.parent.parent
         maker_prof = resolve_persona_profile(maker_val, sess_dir)
-        if maker_prof and persona_validator:
+        if maker_prof is None:
+            print(f"[ERROR] Node {nid}: Assigned Maker persona '{maker_id}' could not be resolved from persona catalog or session.", file=sys.stderr)
+            return False
+
+        if persona_validator:
             try:
                 persona_validator.validate(maker_prof)
             except jsonschema.ValidationError as ve:
                 print(f"[ERROR] Maker Persona '{maker_id}' in {nid} violates persona_profile.schema.json: {ve.message}", file=sys.stderr)
                 return False
 
-        if maker_prof:
-            maker_stance = maker_prof.get("epistemic_stance", {}).get("stance_type", "")
-            if maker_stance and maker_stance != "constructive_synthesis":
-                print(f"[ERROR] Maker Persona '{maker_id}' in {nid} has invalid stance '{maker_stance}'. Expected 'constructive_synthesis'.", file=sys.stderr)
-                return False
+        maker_cat = maker_prof.get("identity_and_mandate", {}).get("role_category", "")
+        if maker_cat != "Maker":
+            print(f"[ERROR] Node {nid}: Assigned Maker persona '{maker_id}' has role_category='{maker_cat}'. Maker must declare role_category='Maker'.", file=sys.stderr)
+            return False
 
+        maker_stance = maker_prof.get("epistemic_stance", {}).get("stance_type", "")
+        valid_maker_stances = ["constructive_synthesis", "algorithmic_precision", "systems_minimalism"]
+        if maker_stance and maker_stance not in valid_maker_stances:
+            print(f"[ERROR] Maker Persona '{maker_id}' in {nid} has invalid stance '{maker_stance}'. Expected one of {valid_maker_stances}.", file=sys.stderr)
+            return False
+
+        maker_tools = maker_prof.get("permitted_tool_matrix", {})
+        allowed = maker_tools.get("allowed_tools", [])
+        if "write" not in allowed or "edit" not in allowed:
+            print(f"[ERROR] Maker Persona '{maker_id}' in {nid} must declare 'write' and 'edit' in allowed_tools.", file=sys.stderr)
+            return False
+        if "adjudicate_panel" in allowed:
+            print(f"[ERROR] Maker Persona '{maker_id}' in {nid} must NOT declare 'adjudicate_panel' in allowed_tools.", file=sys.stderr)
+            return False
+
+        checker_roles = []
         checker_stances = []
         for cid_idx, c_elem in enumerate(checkers_val):
             c_prof = resolve_persona_profile(c_elem, sess_dir)
             cid_name = checker_ids[cid_idx]
-            if c_prof and persona_validator:
+            if c_prof is None:
+                print(f"[ERROR] Node {nid}: Assigned Checker persona '{cid_name}' could not be resolved from persona catalog or session.", file=sys.stderr)
+                return False
+
+            if persona_validator:
                 try:
                     persona_validator.validate(c_prof)
                 except jsonschema.ValidationError as ve:
                     print(f"[ERROR] Checker Persona '{cid_name}' in {nid} violates persona_profile.schema.json: {ve.message}", file=sys.stderr)
                     return False
-            if c_prof:
-                c_cat = c_prof.get("identity_and_mandate", {}).get("role_category", "")
-                if c_cat == "Maker":
-                    print(f"[ERROR] Checker Persona '{cid_name}' in {nid} declares role_category='Maker'. Checkers must be adversarial auditors.", file=sys.stderr)
-                    return False
-                c_stance = c_prof.get("epistemic_stance", {}).get("stance_type", "")
-                if c_stance == "constructive_synthesis":
-                    print(f"[ERROR] Checker Persona '{cid_name}' in {nid} has constructive stance. Checkers must be adversarial/skeptical.", file=sys.stderr)
-                    return False
-                if c_stance:
-                    checker_stances.append(c_stance)
 
-        if len(checker_stances) == 3 and len(set(checker_stances)) != 3:
-            print(f"[WARN] Node {nid}: Checker personas share overlapping epistemic stances: {checker_stances}. Recommended: [hostile_falsification, adversarial_exploit, macro_sentinel].", file=sys.stderr)
+            c_cat = c_prof.get("identity_and_mandate", {}).get("role_category", "")
+            if c_cat == "Maker":
+                print(f"[ERROR] Checker Persona '{cid_name}' in {nid} declares role_category='Maker'. Checkers must be adversarial auditors.", file=sys.stderr)
+                return False
 
+            c_stance = c_prof.get("epistemic_stance", {}).get("stance_type", "")
+            valid_checker_stances = ["hostile_falsification", "adversarial_exploit", "macro_sentinel"]
+            if c_stance and c_stance not in valid_checker_stances:
+                print(f"[ERROR] Checker Persona '{cid_name}' in {nid} has invalid stance '{c_stance}'. Expected one of {valid_checker_stances}.", file=sys.stderr)
+                return False
+
+            c_tools = c_prof.get("permitted_tool_matrix", {})
+            denied = c_tools.get("denied_tools", [])
+            if "write" not in denied or "edit" not in denied:
+                print(f"[ERROR] Checker Persona '{cid_name}' in {nid} must declare 'write' and 'edit' in denied_tools.", file=sys.stderr)
+                return False
+
+            if c_cat:
+                checker_roles.append(c_cat)
+            if c_stance:
+                checker_stances.append(c_stance)
+
+        # Enforce Tri-Model Heterogeneous Triad: Exactly 1 of each panelist role
+        expected_triad = {"Panelist1_Correctness", "Panelist2_Security", "Panelist3_SystemicSentinel"}
+        if set(checker_roles) != expected_triad:
+            print(f"[ERROR] Node {nid}: Checker personas must form a complete heterogeneous triad of [Panelist1_Correctness, Panelist2_Security, Panelist3_SystemicSentinel]. Found: {checker_roles}", file=sys.stderr)
+            return False
     # 4. Dependency Validation & Acyclicity Proof (Kahn's Algorithm)
     for nid, node in node_map.items():
         deps = node.get("dependencies", [])
